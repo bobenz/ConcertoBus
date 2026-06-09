@@ -1,0 +1,12 @@
+{
+    "ProcessA": {
+        "exe": "C:/Apps/ProcessA/ProcessA.exe",
+        "args": [],
+        "workingDir": "C:/Apps/ProcessA"
+    },
+    "ProcessB": {
+        "exe": "C:/Apps/ProcessB/ProcessB.exe",
+        "args": ["--mode", "atm"],
+        "workingDir": ""
+    }
+}
