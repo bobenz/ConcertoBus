@@ -24,6 +24,9 @@ public:
 
 signals:
     void launchRequested(const QString &name);
+    // Emitted after a publish is dispatched (to local subscribers or queued).
+    // XmppGateway connects here to forward topics to remote buses.
+    void published(const QString &topic, const QJsonObject &data);
 
 private:
     void drainQueue(const QString &nodePrefix, QTcpSocket *socket);

@@ -1,6 +1,9 @@
 #include "BusServer.h"
 #include "Catalog.h"
 #include "Router.h"
+#ifdef CONCERTO_BUS_XMPP
+#include "XmppGateway.h"
+#endif
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -38,6 +41,13 @@ void BusServer::setCatalog(Catalog *catalog)
 {
     m_catalog = catalog;
 }
+
+#ifdef CONCERTO_BUS_XMPP
+void BusServer::setXmppGateway(XmppGateway *gw)
+{
+    m_xmpp = gw;
+}
+#endif
 
 void BusServer::onNewConnection()
 {
@@ -88,6 +98,9 @@ void BusServer::processLine(QTcpSocket *socket, const QByteArray &line)
         const QString name = msg["name"].toString();
         if (name.isEmpty()) { send(socket, QJsonObject{{"error","missing_name"}}); return; }
         m_router->handleRegister(socket, name);
+#ifdef CONCERTO_BUS_XMPP
+        if (m_xmpp) m_xmpp->onLocalRegister(name);
+#endif
         // Notify launch waiters
         if (m_launchWaiters.contains(name)) {
             QJsonObject ready{{"status","ready"},{"name",name}};
@@ -97,7 +110,11 @@ void BusServer::processLine(QTcpSocket *socket, const QByteArray &line)
         }
     }
     else if (cmd == "unregister") {
-        m_router->handleUnregister(msg["name"].toString());
+        const QString uname = msg["name"].toString();
+        m_router->handleUnregister(uname);
+#ifdef CONCERTO_BUS_XMPP
+        if (m_xmpp) m_xmpp->onLocalUnregister(uname);
+#endif
         send(socket, QJsonObject{{"ok",true}});
     }
     else if (cmd == "subscribe") {

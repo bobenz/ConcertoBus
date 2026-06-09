@@ -169,23 +169,23 @@ BusProxy::BusProxy(QObject *parent)
     : QObject(parent)
     , m_client(new BusClient(this))
 {
+    // When (re)connected: push the current snapshot of all hooked properties.
+    // Signal hooks were already established at componentComplete() and are permanent
+    // for the object lifetime — they do not depend on connection state.
     connect(m_client, &BusClient::connectedChanged, this, [this]() {
-        if (m_client->isConnected() && m_complete && !m_hooksEstablished) {
-            m_hooksEstablished = true;
-            hookPropertiesAndSignals();
-        }
+        if (m_client->isConnected() && m_hooksEstablished)
+            sendInitialValues();
     });
 }
 
-BusProxy::~BusProxy()
-{
-    clearHooks();
-}
+BusProxy::~BusProxy() = default;
+
+bool BusProxy::isConnected() const { return m_client->isConnected(); }
 
 QString BusProxy::busHost() const { return m_client->host(); }
-void BusProxy::setBusHost(const QString &h) { m_client->setHost(h); emit busHostChanged(); }
+void BusProxy::setBusHost(const QString &h) { m_client->setHost(h); emit busHostChanged(); if (m_complete) reconnect(); }
 int BusProxy::busPort() const { return m_client->port(); }
-void BusProxy::setBusPort(int p) { m_client->setPort(p); emit busPortChanged(); }
+void BusProxy::setBusPort(int p) { m_client->setPort(p); emit busPortChanged(); if (m_complete) reconnect(); }
 
 void BusProxy::setTargetProcess(const QString &t)
 {
@@ -206,19 +206,21 @@ void BusProxy::setTag(const QString &t)
 void BusProxy::componentComplete()
 {
     m_complete = true;
+    // Introspect the fully-constructed component right here — this is the
+    // only correct moment: QQmlParserStatus guarantees all child bindings
+    // and user-defined properties are in their final state.
+    hookPropertiesAndSignals();
     reconnect();
 }
 
 void BusProxy::reconnect()
 {
     if (m_target.isEmpty() || m_tag.isEmpty()) return;
-    clearHooks();
-    m_hooksEstablished = false;
     m_client->connectToBus();
-    if (m_client->isConnected()) {
-        m_hooksEstablished = true;
-        hookPropertiesAndSignals();
-    }
+    // If already connected synchronously, sendInitialValues is triggered by
+    // the connectedChanged signal; if async, it fires when the socket connects.
+    if (m_client->isConnected() && m_hooksEstablished)
+        sendInitialValues();
 }
 
 QString BusProxy::topic() const
@@ -228,15 +230,21 @@ QString BusProxy::topic() const
 
 void BusProxy::hookPropertiesAndSignals()
 {
+    // Idempotent: only hook once per object lifetime.
+    if (m_hooksEstablished) return;
+    m_hooksEstablished = true;
+
     const QMetaObject *mo = metaObject();
     const int slotIdx = relaySlotIndex();
 
+    // ── Properties ───────────────────────────────────────────────────────────
+    // Wire a SignalRelay to every user-defined notify signal so that any future
+    // property change is forwarded to the bus (connection-independent — the
+    // relay just calls sendPropertyUpdate which drops the message if not connected).
     for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
         const QMetaProperty mp = mo->property(i);
         if (!mp.hasNotifySignal()) continue;
         const QString propName = QString::fromLatin1(mp.name());
-
-        sendPropertyUpdate(propName, mp.read(this));
 
         auto *relay = new SignalRelay(this);
         relay->signalMethod = mp.notifySignal();
@@ -246,6 +254,7 @@ void BusProxy::hookPropertiesAndSignals()
         QMetaObject::connect(this, mp.notifySignalIndex(), relay, slotIdx);
     }
 
+    // ── Action signals ────────────────────────────────────────────────────────
     for (int i = mo->methodOffset(); i < mo->methodCount(); ++i) {
         const QMetaMethod method = mo->method(i);
         if (method.methodType() != QMetaMethod::Signal) continue;
@@ -262,10 +271,17 @@ void BusProxy::hookPropertiesAndSignals()
     }
 }
 
-void BusProxy::clearHooks()
+void BusProxy::sendInitialValues()
 {
-    const auto relays = findChildren<SignalRelay *>(QString(), Qt::FindDirectChildrenOnly);
-    for (auto *r : relays) delete r;
+    // Push the current value of every user-defined property to the bus.
+    // Called on each (re)connect so the receiving Foreign always gets
+    // a full snapshot even after a temporary disconnect.
+    const QMetaObject *mo = metaObject();
+    for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
+        const QMetaProperty mp = mo->property(i);
+        if (!mp.hasNotifySignal()) continue;
+        sendPropertyUpdate(QString::fromLatin1(mp.name()), mp.read(this));
+    }
 }
 
 void BusProxy::sendPropertyUpdate(const QString &name, const QVariant &value)

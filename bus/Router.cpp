@@ -76,6 +76,8 @@ void Router::handlePublish(const QString &topic, const QJsonObject &data)
 
     for (QTcpSocket *sub : subs)
         send(sub, push);
+
+    emit published(topic, data);
 }
 
 void Router::handleClientGone(QTcpSocket *socket)

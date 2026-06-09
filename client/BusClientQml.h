@@ -81,6 +81,7 @@ public:
     void setTag(const QString &t);
 
     bool isHooked() const { return m_hooksEstablished; }
+    bool isConnected() const;
 
     // QQmlParserStatus
     void classBegin() override {}
@@ -94,8 +95,10 @@ signals:
 
 private:
     void reconnect();
+    // Wires SignalRelay objects once at componentComplete() — connection-independent.
     void hookPropertiesAndSignals();
-    void clearHooks();
+    // Pushes current property snapshot on every (re)connect.
+    void sendInitialValues();
     QString topic() const;
     void sendPropertyUpdate(const QString &name, const QVariant &value);
     void sendActionTrigger(const QString &name, const QVariantList &args);
@@ -105,5 +108,4 @@ private:
     QString m_tag;
     bool m_complete = false;
     bool m_hooksEstablished = false;
-    QList<QMetaObject *> m_relayMeta;  // dynamic meta-objects to free on cleanup
 };

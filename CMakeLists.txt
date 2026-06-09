@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "RelWithDebInfo;Release;")
-set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL     "MinSizeRel;Release;")
+set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL     "RelWithDebInfo;Release;")
+set(CMAKE_MAP_IMPORTED_CONFIG_RELEASE        "RelWithDebInfo;Release;")
+set(CMAKE_MAP_IMPORTED_CONFIG_DEBUG          "RelWithDebInfo;")
 
 # Qt6 required
 find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick)
@@ -15,7 +17,7 @@ option(CONCERTO_BUS_XMPP "Build XMPP gateway (requires QXmpp)" OFF)
 
 if(CONCERTO_BUS_XMPP)
     list(APPEND CMAKE_PREFIX_PATH "D:/Qt/qxmpp-installed")
-    find_package(QXmpp REQUIRED)
+    find_package(QXmppQt6 REQUIRED)
 endif()
 
 # ── Client library ────────────────────────────────────────────────────────────

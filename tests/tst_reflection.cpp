@@ -88,7 +88,7 @@ private slots:
         proxy.setTag("data");
         proxy.componentComplete();  // triggers async connectToBus
         // Wait until proxy is connected and has hooked + published initial values
-        QVERIFY(QTest::qWaitFor([&]{ return proxy.isHooked(); }, 2000));
+        QVERIFY(QTest::qWaitFor([&]{ return proxy.isHooked() && proxy.isConnected(); }, 2000));
         QTest::qWait(50);
 
         // Should have received the initial property values (value=0, label="")
@@ -146,7 +146,8 @@ private slots:
         proxy.setTargetProcess("NodeC");
         proxy.setTag("ctrl");
         proxy.componentComplete();
-        QVERIFY(QTest::qWaitFor([&]{ return proxy.isHooked(); }, 2000));
+        QVERIFY(QTest::qWaitFor([&]{ return proxy.isHooked() && proxy.isConnected(); }, 2000));
+        QTest::qWait(50);  // let initial property values flush through and spy subscription settle
         msgSpy.clear();
 
         // Fire the actionFired signal on the proxy
