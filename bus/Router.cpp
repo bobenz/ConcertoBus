@@ -40,6 +40,16 @@ void Router::handleSubscribe(QTcpSocket *socket, const QString &topic)
 {
     m_subscriptions[topic].insert(socket);
     m_socketTopics[socket].insert(topic);
+    // Drain any queued messages to this new subscriber
+    if (m_queues.contains(topic)) {
+        for (const QJsonObject &data : m_queues.take(topic)) {
+            QJsonObject push;
+            push["push"]  = true;
+            push["from"]  = topic;
+            push["data"]  = data;
+            send(socket, push);
+        }
+    }
     send(socket, QJsonObject{{"ok", true}});
 }
 
@@ -53,12 +63,8 @@ void Router::handlePublish(const QString &topic, const QJsonObject &data)
 {
     const QSet<QTcpSocket *> &subs = m_subscriptions.value(topic);
 
-    // Extract the node name from topic (everything before the first '/')
-    const QString node = topic.section(QLatin1Char('/'), 0, 0);
-    const bool ownerOnline = m_registry.contains(node);
-
-    if (!ownerOnline) {
-        // Queue for later delivery
+    if (subs.isEmpty()) {
+        // No subscribers yet — queue for the next subscriber that arrives
         m_queues[topic].append(data);
         return;
     }

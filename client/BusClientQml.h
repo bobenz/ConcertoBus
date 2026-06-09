@@ -2,14 +2,17 @@
 #include "BusClient.h"
 #include <QJsonArray>
 #include <QQmlEngine>
+#include <QQmlParserStatus>
 
 // ── BusForeign ────────────────────────────────────────────────────────────────
-// Subscribes to a topic on the bus and exposes incoming messages via
-// updateFromNetwork() — same interface as RemotePlugin's Foreign.
-class BusForeign : public QObject
+// Subscribes to a topic on the bus. Incoming JSON is applied to user-defined
+// properties and signals via QMetaObject reflection — same semantics as
+// RemotePlugin's Foreign.
+class BusForeign : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
     QML_ELEMENT
+    Q_INTERFACES(QQmlParserStatus)
     Q_PROPERTY(QString busHost READ busHost WRITE setBusHost NOTIFY busHostChanged)
     Q_PROPERTY(int busPort READ busPort WRITE setBusPort NOTIFY busPortChanged)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
@@ -27,6 +30,10 @@ public:
     QString tag() const { return m_tag; }
     void setTag(const QString &t);
 
+    // QQmlParserStatus
+    void classBegin() override {}
+    void componentComplete() override;
+
 signals:
     void busHostChanged();
     void busPortChanged();
@@ -34,9 +41,7 @@ signals:
     void tagChanged();
 
 protected:
-    // Subclasses / QML property bindings apply data here.
-    // Dispatches {"properties":{...}} and {"action":...} exactly as Foreign did.
-    virtual void updateFromNetwork(const QJsonObject &data);
+    void updateFromNetwork(const QString &from, const QJsonObject &data);
 
 private:
     void reconnect();
@@ -45,15 +50,18 @@ private:
     BusClient *m_client;
     QString m_name;
     QString m_tag;
+    bool m_complete = false;
 };
 
 // ── BusProxy ──────────────────────────────────────────────────────────────────
-// Publishes property changes and signal triggers to a topic on the bus.
-// Mirrors RemotePlugin's Proxy API.
-class BusProxy : public QObject
+// Hooks all user-defined properties and non-Changed signals via QMetaObject
+// reflection (starting from propertyOffset/methodOffset to skip Qt built-ins).
+// Publishes changes to the bus as {"properties":{...}} and {"action":...}.
+class BusProxy : public QObject, public QQmlParserStatus
 {
     Q_OBJECT
     QML_ELEMENT
+    Q_INTERFACES(QQmlParserStatus)
     Q_PROPERTY(QString busHost READ busHost WRITE setBusHost NOTIFY busHostChanged)
     Q_PROPERTY(int busPort READ busPort WRITE setBusPort NOTIFY busPortChanged)
     Q_PROPERTY(QString targetProcess READ targetProcess WRITE setTargetProcess NOTIFY targetProcessChanged)
@@ -61,6 +69,7 @@ class BusProxy : public QObject
 
 public:
     explicit BusProxy(QObject *parent = nullptr);
+    ~BusProxy() override;
 
     QString busHost() const;
     void setBusHost(const QString &h);
@@ -71,9 +80,11 @@ public:
     QString tag() const { return m_tag; }
     void setTag(const QString &t);
 
-    // Called by the QML engine's property/signal hooks
-    Q_INVOKABLE void sendProperties(const QJsonObject &props);
-    Q_INVOKABLE void sendAction(const QString &name, const QJsonArray &args = QJsonArray());
+    bool isHooked() const { return m_hooksEstablished; }
+
+    // QQmlParserStatus
+    void classBegin() override {}
+    void componentComplete() override;
 
 signals:
     void busHostChanged();
@@ -83,9 +94,16 @@ signals:
 
 private:
     void reconnect();
+    void hookPropertiesAndSignals();
+    void clearHooks();
     QString topic() const;
+    void sendPropertyUpdate(const QString &name, const QVariant &value);
+    void sendActionTrigger(const QString &name, const QVariantList &args);
 
     BusClient *m_client;
     QString m_target;
     QString m_tag;
+    bool m_complete = false;
+    bool m_hooksEstablished = false;
+    QList<QMetaObject *> m_relayMeta;  // dynamic meta-objects to free on cleanup
 };

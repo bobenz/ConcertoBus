@@ -77,4 +77,15 @@ if(Qt6Test_FOUND)
     target_include_directories(tst_local PRIVATE bus)
     target_link_libraries(tst_local PRIVATE ConcertoBusClient Qt6::Test Qt6::Network)
     add_test(NAME tst_local COMMAND tst_local)
+
+    qt_add_executable(tst_reflection
+        tests/tst_reflection.cpp
+        bus/BusServer.h bus/BusServer.cpp
+        bus/Router.h    bus/Router.cpp
+        bus/Catalog.h   bus/Catalog.cpp
+        client/BusClientQml.h client/BusClientQml.cpp
+    )
+    target_include_directories(tst_reflection PRIVATE bus client)
+    target_link_libraries(tst_reflection PRIVATE ConcertoBusClient Qt6::Test Qt6::Network Qt6::Qml)
+    add_test(NAME tst_reflection COMMAND tst_reflection)
 endif()
