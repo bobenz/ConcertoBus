@@ -21,6 +21,18 @@ class TstProcessManager : public QObject
     Q_OBJECT
 
 private slots:
+    // Install AFTER QTest::qExec() has set up its own handler; restore on teardown.
+    // Q_CONSTRUCTOR_FUNCTION runs too early — QTest replaces any handler installed
+    // before qExec(), so the filter must be (re-)installed here.
+    void initTestCase()
+    {
+        g_prevHandler = qInstallMessageHandler(silentQProcessWarnings);
+    }
+    void cleanupTestCase()
+    {
+        qInstallMessageHandler(g_prevHandler);
+        g_prevHandler = nullptr;
+    }
     void test_loadFromConfig()
     {
         ProcessManager mgr;
@@ -94,10 +106,6 @@ private slots:
         QCOMPARE(mgr.transportFor("Worker"), QStringLiteral("stdio"));
     }
 };
-
-// Install the filter before any test runs
-void installFilter() { g_prevHandler = qInstallMessageHandler(silentQProcessWarnings); }
-Q_CONSTRUCTOR_FUNCTION(installFilter)
 
 QTEST_MAIN(TstProcessManager)
 #include "tst_processmanager.moc"
