@@ -1,55 +1,39 @@
-#include "BusServer.h"
-#include "Catalog.h"
-#ifdef CONCERTO_BUS_XMPP
-#include "XmppGateway.h"
-#endif
-
+#include "BusConfigLoader.h"
+#include "ProcessManager.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QDebug>
+
+// TODO Step 8: instantiate BusCore here and wire transports/gateways.
+// For now this is a placeholder that loads config and starts the process manager.
 
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
     app.setApplicationName("ConcertoBusDaemon");
-    app.setApplicationVersion("1.0");
+    app.setApplicationVersion("2.0");
 
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addOption({{"p","port"}, "TCP port to listen on (default 49152)", "port", "49152"});
-    parser.addOption({{"c","catalog"}, "Path to launcher_catalog.json", "catalog"});
-#ifdef CONCERTO_BUS_XMPP
-    parser.addOption({{"j","jid"}, "XMPP JID for federation (e.g. bus@example.com)", "jid"});
-    parser.addOption({{"P","xmpp-password"}, "XMPP password", "password"});
-    parser.addOption({{"H","xmpp-host"}, "XMPP server host (optional)", "host"});
-    parser.addOption({{"X","xmpp-port"}, "XMPP server port (default 5222)", "xmpp-port", "5222"});
-#endif
+    parser.addOption({{"c","config"}, "Path to bus config QML file", "config"});
     parser.process(app);
 
-    const quint16 port = static_cast<quint16>(parser.value("port").toUInt());
-    const QString catalogPath = parser.value("catalog");
-
-    Catalog catalog;
-    if (!catalogPath.isEmpty())
-        catalog.load(catalogPath);
-
-    BusServer server;
-    server.setCatalog(&catalog);
-
-#ifdef CONCERTO_BUS_XMPP
-    const QString jid = parser.value("jid");
-    if (!jid.isEmpty()) {
-        auto *gw = new XmppGateway(server.router(), &app);
-        server.setXmppGateway(gw);
-        const QString xmppPass = parser.value("xmpp-password");
-        const QString xmppHost = parser.value("xmpp-host");
-        const int xmppPort = parser.value("xmpp-port").toInt();
-        gw->connectToServer(jid, xmppPass, xmppHost, xmppPort);
-    }
-#endif
-
-    if (!server.listen(port))
+    const QString configPath = parser.value("config");
+    if (configPath.isEmpty()) {
+        qCritical() << "No config file specified. Use -c <path>";
         return 1;
+    }
+
+    BusConfigLoader loader;
+    BusConfig *config = loader.load(configPath);
+    if (!config) {
+        qCritical() << "Failed to load config:" << configPath;
+        return 1;
+    }
+
+    ProcessManager pm;
+    pm.load(config);
 
     return app.exec();
 }

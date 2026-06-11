@@ -89,6 +89,14 @@ qt_add_qml_module(ConcertoBusQml
 )
 target_link_libraries(ConcertoBusQml PRIVATE ConcertoBusClient Qt6::Qml Qt6::Quick)
 
+# ── Router (shared between daemon and tests) ──────────────────────────────────
+qt_add_library(BusRouter STATIC
+    bus/Router.h
+    bus/Router.cpp
+)
+target_include_directories(BusRouter PUBLIC bus)
+target_link_libraries(BusRouter PUBLIC Qt6::Core)
+
 # ── Bus daemon ────────────────────────────────────────────────────────────────
 qt_add_executable(ConcertoBusDaemon
     bus/main.cpp
@@ -100,6 +108,7 @@ target_link_libraries(ConcertoBusDaemon PRIVATE
     Qt6::Core Qt6::Network Qt6::Qml
     BusConfigLib
     BusProcessManager
+    BusRouter
 )
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -126,15 +135,10 @@ if(Qt6Test_FOUND)
     add_test(NAME tst_processmanager COMMAND tst_processmanager -o ${CMAKE_BINARY_DIR}/tst_processmanager_result.txt,txt)
     set_tests_properties(tst_processmanager PROPERTIES ENVIRONMENT "${TEST_ENV}")
 
-    # Legacy tests (kept until superseded in later steps)
-    qt_add_executable(tst_local
-        tests/tst_local.cpp
-        bus/BusServer.h bus/BusServer.cpp
-        bus/Router.h    bus/Router.cpp
-        bus/Catalog.h   bus/Catalog.cpp
-    )
-    target_include_directories(tst_local PRIVATE bus)
-    target_link_libraries(tst_local PRIVATE ConcertoBusClient Qt6::Test Qt6::Network)
-    add_test(NAME tst_local COMMAND tst_local)
-    set_tests_properties(tst_local PROPERTIES ENVIRONMENT "${TEST_ENV}")
+    # Step 2 — router unit tests
+    qt_add_executable(tst_router tests/tst_router.cpp)
+    target_include_directories(tst_router PRIVATE bus)
+    target_link_libraries(tst_router PRIVATE BusRouter Qt6::Test)
+    add_test(NAME tst_router COMMAND tst_router -o ${CMAKE_BINARY_DIR}/tst_router_result.txt,txt)
+    set_tests_properties(tst_router PROPERTIES ENVIRONMENT "${TEST_ENV}")
 endif()

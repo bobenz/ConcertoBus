@@ -1,11 +1,10 @@
 #pragma once
+#include "IBusTransport.h"
 #include <QHash>
 #include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QSet>
-
-class QTcpSocket;
 
 class Router : public QObject
 {
@@ -13,33 +12,44 @@ class Router : public QObject
 public:
     explicit Router(QObject *parent = nullptr);
 
-    void handleRegister(QTcpSocket *socket, const QString &name);
-    void handleUnregister(const QString &name);
-    void handleSubscribe(QTcpSocket *socket, const QString &topic);
-    void handleUnsubscribe(QTcpSocket *socket, const QString &topic);
-    void handlePublish(const QString &topic, const QJsonObject &data);
-    void handleClientGone(QTcpSocket *socket);
+    // Called by BusCore when a client sends its first "register" message.
+    // Returns false if the name is already taken by a different client.
+    bool handleRegister(ClientId id, const QString &name);
+
+    void handleUnsubscribe(ClientId id, const QString &tag);
+    void handlePublish(const QString &to, const QString &senderName,
+                       const QJsonObject &data);
+    void handleClientGone(ClientId id);
+
+    // Subscribe id (already registered as name) to a tag.
+    // Drains any queued messages targeted at this client.
+    void handleSubscribe(ClientId id, const QString &tag);
 
     bool isRegistered(const QString &name) const;
+    QString nameOf(ClientId id) const;
 
 signals:
-    void launchRequested(const QString &name);
-    // Emitted after a publish is dispatched (to local subscribers or queued).
-    // XmppGateway connects here to forward topics to remote buses.
-    void published(const QString &topic, const QJsonObject &data);
+    // Router asks BusCore to deliver a serialised push message to one client.
+    void sendToClient(ClientId id, const QByteArray &json);
+
+    // Forwarded to gateways after a local publish.
+    void published(const QString &tag, const QString &sender,
+                   const QJsonObject &data);
 
 private:
-    void drainQueue(const QString &nodePrefix, QTcpSocket *socket);
-    static void send(QTcpSocket *socket, const QJsonObject &msg);
+    void drainQueuesFor(ClientId id, const QString &name);
+    QByteArray makePush(const QString &tag, const QString &sender,
+                        const QJsonObject &data) const;
 
-    // name → owning socket (the registered process)
-    QHash<QString, QTcpSocket *> m_registry;
-    // topic ("ProcessA/sensor") → subscriber sockets
-    QHash<QString, QSet<QTcpSocket *>> m_subscriptions;
-    // topic → queued messages while owner is offline
+    // name → ClientId
+    QHash<QString, ClientId>       m_registry;
+    // ClientId → name  (reverse)
+    QHash<ClientId, QString>       m_clientName;
+    // tag → subscriber ClientIds
+    QHash<QString, QSet<ClientId>> m_tagSubs;
+    // ClientId → subscribed tags  (reverse)
+    QHash<ClientId, QSet<QString>> m_clientTags;
+    // queue key → messages
+    //   key is "tag:name"  (unicast queue) or "tag:*" (broadcast queue)
     QHash<QString, QList<QJsonObject>> m_queues;
-    // reverse map: socket → registered name (for cleanup)
-    QHash<QTcpSocket *, QString> m_socketName;
-    // reverse map: socket → subscribed topics (for cleanup)
-    QHash<QTcpSocket *, QSet<QString>> m_socketTopics;
 };

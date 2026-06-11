@@ -8,15 +8,12 @@ INCLUDEPATH += ../bus ../bus/config
 HEADERS += \
     ../bus/IBusTransport.h \
     ../bus/IBusGateway.h \
-    ../bus/BusServer.h \
-    ../bus/Router.h \
-    ../bus/Catalog.h
+    ../bus/Router.h
 
 SOURCES += \
     ../bus/main.cpp \
-    ../bus/BusServer.cpp \
-    ../bus/Router.cpp \
-    ../bus/Catalog.cpp
+    ../bus/Router.cpp
 
-LIBS += -L$$OUT_PWD/../bus/config -lBusConfigLib
+LIBS += -L$$OUT_PWD/../bus/config       -lBusConfigLib
 LIBS += -L$$OUT_PWD/../bus/processmanager -lBusProcessManager
+LIBS += -L$$OUT_PWD/../bus/router       -lBusRouter

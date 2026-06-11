@@ -1,97 +1,93 @@
 #include "Router.h"
 #include <QJsonDocument>
-#include <QTcpSocket>
 
 Router::Router(QObject *parent) : QObject(parent) {}
 
-void Router::handleRegister(QTcpSocket *socket, const QString &name)
+bool Router::handleRegister(ClientId id, const QString &name)
 {
-    // Replace any stale entry for the same name
-    if (m_registry.contains(name)) {
-        QTcpSocket *old = m_registry.value(name);
-        if (old != socket)
-            m_socketName.remove(old);
-    }
-    m_registry.insert(name, socket);
-    m_socketName.insert(socket, name);
+    if (m_registry.contains(name))
+        return false;
+    m_registry.insert(name, id);
+    m_clientName.insert(id, name);
+    m_clientTags.insert(id, {});
+    return true;
+}
 
-    // Drain all queued messages for topics owned by this node
-    const QString prefix = name + QLatin1Char('/');
-    for (auto it = m_queues.begin(); it != m_queues.end(); ) {
-        if (it.key().startsWith(prefix)) {
-            drainQueue(it.key(), socket);
-            it = m_queues.erase(it);
+void Router::handleSubscribe(ClientId id, const QString &tag)
+{
+    m_tagSubs[tag].insert(id);
+    m_clientTags[id].insert(tag);
+
+    const QString name = m_clientName.value(id);
+    // Drain unicast queue ("tag:name") and broadcast queue ("tag:*") for this tag.
+    auto drainKey = [&](const QString &key) {
+        auto qit = m_queues.find(key);
+        if (qit == m_queues.end()) return;
+        for (const QJsonObject &msg : qit.value())
+            emit sendToClient(id, makePush(tag, {}, msg));
+        m_queues.erase(qit);
+    };
+    drainKey(tag + QLatin1Char(':') + name);
+    drainKey(tag + QLatin1String(":*"));
+}
+
+void Router::handleUnsubscribe(ClientId id, const QString &tag)
+{
+    m_tagSubs[tag].remove(id);
+    m_clientTags[id].remove(tag);
+}
+
+void Router::handlePublish(const QString &to, const QString &senderName,
+                           const QJsonObject &data)
+{
+    QString tag;
+    QString target;
+
+    const int colon = to.indexOf(QLatin1Char(':'));
+    if (colon >= 0) {
+        tag    = to.left(colon);
+        target = to.mid(colon + 1);
+    } else {
+        tag    = to;
+        target = QStringLiteral("*");
+    }
+
+    emit published(tag, senderName, data);
+
+    const QSet<ClientId> &tagSubscribers = m_tagSubs.value(tag);
+
+    if (target == QLatin1String("*")) {
+        if (tagSubscribers.isEmpty()) {
+            m_queues[tag + QLatin1String(":*")].append(data);
         } else {
-            ++it;
+            const QByteArray msg = makePush(tag, senderName, data);
+            for (ClientId rid : tagSubscribers)
+                emit sendToClient(rid, msg);
         }
-    }
-
-    send(socket, QJsonObject{{"ok", true}});
-}
-
-void Router::handleUnregister(const QString &name)
-{
-    QTcpSocket *socket = m_registry.take(name);
-    if (socket)
-        m_socketName.remove(socket);
-}
-
-void Router::handleSubscribe(QTcpSocket *socket, const QString &topic)
-{
-    m_subscriptions[topic].insert(socket);
-    m_socketTopics[socket].insert(topic);
-    // Drain any queued messages to this new subscriber
-    if (m_queues.contains(topic)) {
-        for (const QJsonObject &data : m_queues.take(topic)) {
-            QJsonObject push;
-            push["push"]  = true;
-            push["from"]  = topic;
-            push["data"]  = data;
-            send(socket, push);
+    } else {
+        // unicast to a specific registered name
+        auto it = m_registry.find(target);
+        if (it == m_registry.end()) {
+            m_queues[tag + QLatin1Char(':') + target].append(data);
+            return;
         }
+        ClientId rid = it.value();
+        if (!tagSubscribers.contains(rid)) {
+            m_queues[tag + QLatin1Char(':') + target].append(data);
+            return;
+        }
+        emit sendToClient(rid, makePush(tag, senderName, data));
     }
-    send(socket, QJsonObject{{"ok", true}});
 }
 
-void Router::handleUnsubscribe(QTcpSocket *socket, const QString &topic)
+void Router::handleClientGone(ClientId id)
 {
-    m_subscriptions[topic].remove(socket);
-    m_socketTopics[socket].remove(topic);
-}
+    const QString name = m_clientName.take(id);
+    m_registry.remove(name);
 
-void Router::handlePublish(const QString &topic, const QJsonObject &data)
-{
-    const QSet<QTcpSocket *> &subs = m_subscriptions.value(topic);
-
-    if (subs.isEmpty()) {
-        // No subscribers yet — queue for the next subscriber that arrives
-        m_queues[topic].append(data);
-        return;
-    }
-
-    QJsonObject push;
-    push["push"] = true;
-    push["from"] = topic;
-    push["data"] = data;
-
-    for (QTcpSocket *sub : subs)
-        send(sub, push);
-
-    emit published(topic, data);
-}
-
-void Router::handleClientGone(QTcpSocket *socket)
-{
-    // Remove registration
-    if (m_socketName.contains(socket)) {
-        const QString name = m_socketName.take(socket);
-        m_registry.remove(name);
-    }
-
-    // Remove all subscriptions
-    const QSet<QString> topics = m_socketTopics.take(socket);
-    for (const QString &topic : topics)
-        m_subscriptions[topic].remove(socket);
+    const QSet<QString> tags = m_clientTags.take(id);
+    for (const QString &t : tags)
+        m_tagSubs[t].remove(id);
 }
 
 bool Router::isRegistered(const QString &name) const
@@ -99,23 +95,18 @@ bool Router::isRegistered(const QString &name) const
     return m_registry.contains(name);
 }
 
-void Router::drainQueue(const QString &topic, QTcpSocket *socket)
+QString Router::nameOf(ClientId id) const
 {
-    const QList<QJsonObject> &msgs = m_queues.value(topic);
-    for (const QJsonObject &data : msgs) {
-        QJsonObject push;
-        push["push"] = true;
-        push["from"] = topic;
-        push["data"] = data;
-        send(socket, push);
-    }
+    return m_clientName.value(id);
 }
 
-void Router::send(QTcpSocket *socket, const QJsonObject &msg)
+QByteArray Router::makePush(const QString &tag, const QString &sender,
+                             const QJsonObject &data) const
 {
-    if (!socket || socket->state() != QAbstractSocket::ConnectedState)
-        return;
-    QByteArray line = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    line += '\n';
-    socket->write(line);
+    QJsonObject msg;
+    msg[QStringLiteral("push")]   = true;
+    msg[QStringLiteral("from")]   = tag;
+    msg[QStringLiteral("sender")] = sender;
+    msg[QStringLiteral("data")]   = data;
+    return QJsonDocument(msg).toJson(QJsonDocument::Compact) + '\n';
 }
