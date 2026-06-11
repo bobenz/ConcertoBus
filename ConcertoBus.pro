@@ -5,6 +5,8 @@ SUBDIRS  = \
     bus/config \
     bus/processmanager \
     bus/router \
+    transports/stdio \
+    bus/buscore \
     client \
     daemon \
     tests/tst_config \
