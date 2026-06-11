@@ -3,6 +3,19 @@
 
 #include "../bus/ProcessManager.h"
 
+// Suppress QProcess warnings about processes that exit immediately during
+// autoRestart tests (e.g. "Executable path is empty", "QProcess: Destroyed
+// while process … is still running"). These are expected in the test context.
+static QtMessageHandler g_prevHandler = nullptr;
+static void silentQProcessWarnings(QtMsgType type, const QMessageLogContext &ctx,
+                                   const QString &msg)
+{
+    if (msg.contains(QLatin1String("QProcess")) || msg.contains(QLatin1String("Executable path")))
+        return;
+    if (g_prevHandler) g_prevHandler(type, ctx, msg);
+    else if (type >= QtWarningMsg) fprintf(stderr, "%s\n", qPrintable(msg));
+}
+
 class TstProcessManager : public QObject
 {
     Q_OBJECT
@@ -81,6 +94,10 @@ private slots:
         QCOMPARE(mgr.transportFor("Worker"), QStringLiteral("stdio"));
     }
 };
+
+// Install the filter before any test runs
+void installFilter() { g_prevHandler = qInstallMessageHandler(silentQProcessWarnings); }
+Q_CONSTRUCTOR_FUNCTION(installFilter)
 
 QTEST_MAIN(TstProcessManager)
 #include "tst_processmanager.moc"
