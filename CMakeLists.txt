@@ -36,13 +36,14 @@ target_include_directories(BusProcessManager PUBLIC bus)
 target_link_libraries(BusProcessManager PUBLIC Qt6::Core BusConfigLib)
 
 # ── StdioTransport (built-in, statically linked into daemon) ──────────────────
-# Written in Step 2 — placeholder target defined here so daemon can link it.
-# qt_add_library(BusStdioTransport STATIC
-#     transports/stdio/StdioTransport.h
-#     transports/stdio/StdioTransport.cpp
-# )
-# target_include_directories(BusStdioTransport PUBLIC transports/stdio bus)
-# target_link_libraries(BusStdioTransport PUBLIC Qt6::Core)
+qt_add_library(BusStdioTransport STATIC
+    bus/IBusTransport.h
+    bus/IBusTransport.cpp
+    transports/stdio/StdioTransport.h
+    transports/stdio/StdioTransport.cpp
+)
+target_include_directories(BusStdioTransport PUBLIC transports/stdio bus)
+target_link_libraries(BusStdioTransport PUBLIC Qt6::Core)
 
 # ── TCP transport plugin ──────────────────────────────────────────────────────
 # Written in Step 3 — placeholder.
@@ -74,20 +75,32 @@ endif()
 qt_add_library(ConcertoBusClient STATIC
     client/BusClient.h
     client/BusClient.cpp
+    client/StdioBusClient.h
+    client/StdioBusClient.cpp
 )
 target_include_directories(ConcertoBusClient PUBLIC client)
 target_link_libraries(ConcertoBusClient PUBLIC Qt6::Core Qt6::Network)
 
-# ── QML plugin (exports BusClient; StdioBusClient added in Step 2) ────────────
+# ── QML plugin (exports BusClient + StdioBusClient) ──────────────────────────
 qt_add_qml_module(ConcertoBusQml
     URI ConcertoBus
     VERSION 2.0
     PLUGIN_TARGET concertobusplugin
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/imports/ConcertoBus
     SOURCES
+        client/BusClient.h      client/BusClient.cpp
+        client/StdioBusClient.h client/StdioBusClient.cpp
         client/ConcertoBusPlugin.cpp
 )
 target_link_libraries(ConcertoBusQml PRIVATE ConcertoBusClient Qt6::Qml Qt6::Quick)
+
+# ── BusCore (wires StdioTransport + Router) ───────────────────────────────────
+qt_add_library(BusCoreLib STATIC
+    bus/BusCore.h
+    bus/BusCore.cpp
+)
+target_include_directories(BusCoreLib PUBLIC bus transports/stdio)
+target_link_libraries(BusCoreLib PUBLIC Qt6::Core BusRouter BusStdioTransport)
 
 # ── Router (shared between daemon and tests) ──────────────────────────────────
 qt_add_library(BusRouter STATIC
@@ -108,7 +121,7 @@ target_link_libraries(ConcertoBusDaemon PRIVATE
     Qt6::Core Qt6::Network Qt6::Qml
     BusConfigLib
     BusProcessManager
-    BusRouter
+    BusCoreLib
 )
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -141,4 +154,16 @@ if(Qt6Test_FOUND)
     target_link_libraries(tst_router PRIVATE BusRouter Qt6::Test)
     add_test(NAME tst_router COMMAND tst_router -o ${CMAKE_BINARY_DIR}/tst_router_result.txt,txt)
     set_tests_properties(tst_router PROPERTIES ENVIRONMENT "${TEST_ENV}")
+
+    # Step 2 — stdio end-to-end: helper process + integration test
+    qt_add_executable(stdio_echo_helper tests/stdio_echo_helper/main.cpp)
+    target_include_directories(stdio_echo_helper PRIVATE client)
+    target_link_libraries(stdio_echo_helper PRIVATE ConcertoBusClient Qt6::Core)
+
+    qt_add_executable(tst_stdio tests/tst_stdio.cpp)
+    target_include_directories(tst_stdio PRIVATE bus transports/stdio)
+    target_link_libraries(tst_stdio PRIVATE BusCoreLib Qt6::Test)
+    add_test(NAME tst_stdio COMMAND tst_stdio -o ${CMAKE_BINARY_DIR}/tst_stdio_result.txt,txt)
+    set_tests_properties(tst_stdio PROPERTIES ENVIRONMENT "${TEST_ENV}")
+    add_dependencies(tst_stdio stdio_echo_helper)
 endif()

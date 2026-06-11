@@ -4,11 +4,13 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QString>
+#include <QtQml/qqml.h>
 
 class QTcpSocket;
 
 class BusClient : public QObject
 {
+    QML_ELEMENT
     Q_OBJECT
     Q_PROPERTY(QString host READ host WRITE setHost NOTIFY hostChanged)
     Q_PROPERTY(int port READ port WRITE setPort NOTIFY portChanged)

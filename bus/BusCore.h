@@ -1,0 +1,52 @@
+#pragma once
+#include "Router.h"
+#include "IBusTransport.h"
+#include <QHash>
+#include <QJsonObject>
+#include <QObject>
+
+class StdioTransport;
+class QProcess;
+
+// Wires one or more IBusTransport instances to the Router.
+// Handles the mandatory registration handshake and routes protocol commands.
+class BusCore : public QObject
+{
+    Q_OBJECT
+public:
+    explicit BusCore(QObject *parent = nullptr);
+
+    // Add a transport.  BusCore takes ownership if reparent is true (default).
+    void addTransport(IBusTransport *transport, bool reparent = true);
+
+    // Convenience: access the built-in StdioTransport (created in constructor).
+    StdioTransport *stdioTransport() const;
+
+    // Tell BusCore about a process that was launched by ProcessManager.
+    // BusCore hooks it to StdioTransport and waits for the registration handshake.
+    void attachProcess(QProcess *proc, const QStringList &autoSubscribeTags = {});
+
+    Router *router() const { return m_router; }
+
+signals:
+    void clientRegistered(ClientId id, const QString &name);
+    void clientGone(ClientId id, const QString &name);
+
+private slots:
+    void onClientConnected(ClientId id);
+    void onClientDisconnected(ClientId id);
+    void onMessageReceived(ClientId id, const QByteArray &json);
+
+private:
+    void dispatchCommand(ClientId id, const QJsonObject &cmd);
+    void sendJson(ClientId id, const QJsonObject &obj);
+
+    Router          *m_router;
+    StdioTransport  *m_stdio;
+
+    // transport that owns each client
+    QHash<ClientId, IBusTransport *> m_clientTransport;
+
+    // clients not yet registered: id → auto-subscribe tags queued from attachProcess
+    QHash<ClientId, QStringList> m_pendingAutoSubs;
+};
