@@ -139,6 +139,12 @@ void ProcessManager::restart(const QString &name)
     }
 }
 
+QProcess *ProcessManager::processFor(const QString &name) const
+{
+    auto it = m_entries.find(name);
+    return (it != m_entries.end()) ? it->process : nullptr;
+}
+
 bool ProcessManager::isRunning(const QString &name) const
 {
     auto it = m_entries.find(name);

@@ -31,6 +31,7 @@ public:
     void restart(const QString &name);
 
     bool isRunning(const QString &name) const;
+    QProcess *processFor(const QString &name) const;
     QStringList names() const;
     QStringList subscriptionsFor(const QString &name) const;
     QString transportFor(const QString &name) const;

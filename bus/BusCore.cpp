@@ -1,4 +1,5 @@
 #include "BusCore.h"
+#include "ProcessManager.h"
 #include "StdioTransport.h"
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -19,8 +20,10 @@ void BusCore::addTransport(IBusTransport *transport, bool reparent)
 {
     if (reparent) transport->setParent(this);
 
-    connect(transport, &IBusTransport::clientConnected,
-            this, &BusCore::onClientConnected);
+    connect(transport, &IBusTransport::clientConnected, this,
+            [this, transport](ClientId id) {
+                m_clientTransport.insert(id, transport);
+            });
     connect(transport, &IBusTransport::clientDisconnected,
             this, &BusCore::onClientDisconnected);
     connect(transport, &IBusTransport::messageReceived,
@@ -48,10 +51,12 @@ void BusCore::attachProcess(QProcess *proc, const QStringList &autoSubscribeTags
     m_stdio->addProcess(proc);
 }
 
-void BusCore::onClientConnected(ClientId id)
+void BusCore::setProcessManager(ProcessManager *pm)
 {
-    auto *transport = qobject_cast<IBusTransport *>(sender());
-    if (transport) m_clientTransport.insert(id, transport);
+    m_pm = pm;
+    connect(pm, &ProcessManager::processStarted, this, &BusCore::onPmStarted);
+    connect(pm, &ProcessManager::processStopped, this, &BusCore::onPmStopped);
+    connect(pm, &ProcessManager::processCrashed, this, &BusCore::onPmCrashed);
 }
 
 void BusCore::onClientDisconnected(ClientId id)
@@ -60,6 +65,9 @@ void BusCore::onClientDisconnected(ClientId id)
     m_router->handleClientGone(id);
     m_clientTransport.remove(id);
     m_pendingAutoSubs.remove(id);
+    // Remove this client from all watcher lists
+    for (auto &watchers : m_processWatchers)
+        watchers.removeAll(id);
     if (!name.isEmpty()) emit clientGone(id, name);
 }
 
@@ -94,6 +102,12 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         for (const QString &tag : tags)
             m_router->handleSubscribe(id, tag);
         emit clientRegistered(id, name);
+        // Notify any clients waiting for this process to come up
+        if (m_processWatchers.contains(name)) {
+            notifyWatchers(name, QJsonObject{
+                {QStringLiteral("event"), QStringLiteral("process_started")},
+                {QStringLiteral("name"), name}});
+        }
         return;
     }
 
@@ -117,6 +131,44 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         const QString to   = cmd[QStringLiteral("to")].toString();
         const QJsonObject data = cmd[QStringLiteral("data")].toObject();
         if (!to.isEmpty()) m_router->handlePublish(to, sender, data);
+    } else if (c == QLatin1String("launch") || c == QLatin1String("kill") || c == QLatin1String("restart")) {
+        const QString name = cmd[QStringLiteral("name")].toString();
+        if (name.isEmpty() || !m_pm) {
+            sendJson(id, QJsonObject{{QStringLiteral("error"), QStringLiteral("unknown_process")}});
+            return;
+        }
+        if (!m_pm->names().contains(name)) {
+            sendJson(id, QJsonObject{
+                {QStringLiteral("error"), QStringLiteral("unknown_process")},
+                {QStringLiteral("name"), name}});
+            return;
+        }
+        // Register caller as a watcher for this process
+        auto &watchers = m_processWatchers[name];
+        if (!watchers.contains(id)) watchers.append(id);
+
+        if (c == QLatin1String("launch")) {
+            if (m_router->isRegistered(name)) {
+                sendJson(id, QJsonObject{
+                    {QStringLiteral("event"), QStringLiteral("process_started")},
+                    {QStringLiteral("name"), name}});
+            } else {
+                sendJson(id, QJsonObject{
+                    {QStringLiteral("event"), QStringLiteral("launching")},
+                    {QStringLiteral("name"), name}});
+                if (!m_pm->isRunning(name)) {
+                    m_pm->launch(name);
+                    if (m_pm->transportFor(name) == QLatin1String("stdio")) {
+                        if (QProcess *proc = m_pm->processFor(name))
+                            attachProcess(proc, m_pm->subscriptionsFor(name));
+                    }
+                }
+            }
+        } else if (c == QLatin1String("kill")) {
+            m_pm->kill(name);
+        } else {
+            m_pm->restart(name);
+        }
     } else {
         sendJson(id, QJsonObject{{QStringLiteral("error"), QStringLiteral("unknown_cmd")}});
     }
@@ -128,4 +180,31 @@ void BusCore::sendJson(ClientId id, const QJsonObject &obj)
     if (!transport) return;
     QByteArray line = QJsonDocument(obj).toJson(QJsonDocument::Compact) + '\n';
     transport->send(id, line);
+}
+
+void BusCore::notifyWatchers(const QString &processName, const QJsonObject &msg)
+{
+    const QList<ClientId> watchers = m_processWatchers.value(processName);
+    for (ClientId wid : watchers)
+        sendJson(wid, msg);
+}
+
+void BusCore::onPmStarted(const QString &/*name*/)
+{
+    // process_started is notified when the process registers on the bus
+    // (see dispatchCommand "register" branch) — not here.
+}
+
+void BusCore::onPmStopped(const QString &name)
+{
+    notifyWatchers(name, QJsonObject{
+        {QStringLiteral("event"), QStringLiteral("process_stopped")},
+        {QStringLiteral("name"), name}});
+}
+
+void BusCore::onPmCrashed(const QString &name)
+{
+    notifyWatchers(name, QJsonObject{
+        {QStringLiteral("event"), QStringLiteral("process_crashed")},
+        {QStringLiteral("name"), name}});
 }

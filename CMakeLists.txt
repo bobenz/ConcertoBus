@@ -100,7 +100,7 @@ qt_add_library(BusCoreLib STATIC
     bus/BusCore.cpp
 )
 target_include_directories(BusCoreLib PUBLIC bus transports/stdio)
-target_link_libraries(BusCoreLib PUBLIC Qt6::Core BusRouter BusStdioTransport)
+target_link_libraries(BusCoreLib PUBLIC Qt6::Core BusRouter BusStdioTransport BusProcessManager)
 
 # ── Router (shared between daemon and tests) ──────────────────────────────────
 qt_add_library(BusRouter STATIC
@@ -113,8 +113,6 @@ target_link_libraries(BusRouter PUBLIC Qt6::Core)
 # ── Bus daemon ────────────────────────────────────────────────────────────────
 qt_add_executable(ConcertoBusDaemon
     bus/main.cpp
-    bus/IBusTransport.h
-    bus/IBusGateway.h
 )
 target_include_directories(ConcertoBusDaemon PRIVATE bus)
 target_link_libraries(ConcertoBusDaemon PRIVATE
@@ -166,4 +164,12 @@ if(Qt6Test_FOUND)
     add_test(NAME tst_stdio COMMAND tst_stdio -o ${CMAKE_BINARY_DIR}/tst_stdio_result.txt,txt)
     set_tests_properties(tst_stdio PROPERTIES ENVIRONMENT "${TEST_ENV}")
     add_dependencies(tst_stdio stdio_echo_helper)
+
+    # Step 3 — BusCore process-control commands (launch/kill/restart + watcher notifications)
+    qt_add_executable(tst_buscore tests/tst_buscore.cpp)
+    target_include_directories(tst_buscore PRIVATE bus transports/stdio)
+    target_link_libraries(tst_buscore PRIVATE BusCoreLib BusProcessManager Qt6::Test)
+    add_test(NAME tst_buscore COMMAND tst_buscore -o ${CMAKE_BINARY_DIR}/tst_buscore_result.txt,txt)
+    set_tests_properties(tst_buscore PROPERTIES ENVIRONMENT "${TEST_ENV}")
+    add_dependencies(tst_buscore stdio_echo_helper)
 endif()

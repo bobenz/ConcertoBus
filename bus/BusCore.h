@@ -4,8 +4,10 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
+#include <QSet>
 
 class StdioTransport;
+class ProcessManager;
 class QProcess;
 
 // Wires one or more IBusTransport instances to the Router.
@@ -26,6 +28,10 @@ public:
     // BusCore hooks it to StdioTransport and waits for the registration handshake.
     void attachProcess(QProcess *proc, const QStringList &autoSubscribeTags = {});
 
+    // Wire ProcessManager so that launch/kill/restart commands are forwarded to it
+    // and PM lifecycle signals are pushed to watching clients.
+    void setProcessManager(ProcessManager *pm);
+
     Router *router() const { return m_router; }
 
 signals:
@@ -33,20 +39,27 @@ signals:
     void clientGone(ClientId id, const QString &name);
 
 private slots:
-    void onClientConnected(ClientId id);
     void onClientDisconnected(ClientId id);
     void onMessageReceived(ClientId id, const QByteArray &json);
+    void onPmStarted(const QString &name);
+    void onPmStopped(const QString &name);
+    void onPmCrashed(const QString &name);
 
 private:
     void dispatchCommand(ClientId id, const QJsonObject &cmd);
     void sendJson(ClientId id, const QJsonObject &obj);
+    void notifyWatchers(const QString &processName, const QJsonObject &msg);
 
     Router          *m_router;
     StdioTransport  *m_stdio;
+    ProcessManager  *m_pm = nullptr;
 
     // transport that owns each client
     QHash<ClientId, IBusTransport *> m_clientTransport;
 
     // clients not yet registered: id → auto-subscribe tags queued from attachProcess
     QHash<ClientId, QStringList> m_pendingAutoSubs;
+
+    // processName → clients watching lifecycle events
+    QHash<QString, QList<ClientId>> m_processWatchers;
 };
