@@ -73,26 +73,41 @@ endif()
 
 # ── Client library ────────────────────────────────────────────────────────────
 qt_add_library(ConcertoBusClient STATIC
+    client/AbstractBusClient.h
+    client/AbstractBusClient.cpp
     client/BusClient.h
     client/BusClient.cpp
+    client/LaunchSpec.h
+    client/LaunchSpec.cpp
     client/StdioBusClient.h
     client/StdioBusClient.cpp
 )
 target_include_directories(ConcertoBusClient PUBLIC client)
-target_link_libraries(ConcertoBusClient PUBLIC Qt6::Core Qt6::Network)
+target_link_libraries(ConcertoBusClient PUBLIC Qt6::Core Qt6::Network Qt6::Qml)
 
-# ── QML plugin (exports BusClient + StdioBusClient) ──────────────────────────
+# ── QML plugin (exports BusClient, StdioBusClient, LaunchSpec) ───────────────
 qt_add_qml_module(ConcertoBusQml
     URI ConcertoBus
     VERSION 2.0
     PLUGIN_TARGET concertobusplugin
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/imports/ConcertoBus
     SOURCES
-        client/BusClient.h      client/BusClient.cpp
-        client/StdioBusClient.h client/StdioBusClient.cpp
+        client/AbstractBusClient.h  client/AbstractBusClient.cpp
+        client/BusClient.h          client/BusClient.cpp
+        client/LaunchSpec.h         client/LaunchSpec.cpp
+        client/StdioBusClient.h     client/StdioBusClient.cpp
         client/ConcertoBusPlugin.cpp
 )
 target_link_libraries(ConcertoBusQml PRIVATE ConcertoBusClient Qt6::Qml Qt6::Quick)
+
+# ── Generic QML host (loads Launch.qml, drives AbstractBusClient) ─────────────
+qt_add_executable(ConcertoBusHost
+    client/host/main.cpp
+)
+target_include_directories(ConcertoBusHost PRIVATE client)
+target_link_libraries(ConcertoBusHost PRIVATE
+    ConcertoBusClient Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick
+)
 
 # ── BusCore (wires StdioTransport + Router) ───────────────────────────────────
 qt_add_library(BusCoreLib STATIC
