@@ -1,10 +1,19 @@
 TEMPLATE = lib
 TARGET   = ConcertoBusClient
 CONFIG  += staticlib c++17
-QT      += core network
+QT      += core network qml
 DESTDIR  = $$OUT_PWD
 
 INCLUDEPATH += .
 
-HEADERS += BusClient.h
-SOURCES += BusClient.cpp
+HEADERS += \
+    AbstractBusClient.h \
+    BusClient.h \
+    LaunchSpec.h \
+    StdioBusClient.h
+
+SOURCES += \
+    AbstractBusClient.cpp \
+    BusClient.cpp \
+    LaunchSpec.cpp \
+    StdioBusClient.cpp

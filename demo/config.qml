@@ -1,34 +1,24 @@
 // Demo 1 — stdio only.
-// pm.exe launches both Sensor and Display automatically via Component.onCompleted.
+// pm.exe reads Launch.qml from each app directory and auto-launches both.
 //
 // Run from the project root:
 //   build\RelWithDebInfo\pm.exe -c demo\config.qml
 
+import QtQml
 import ConcertoBusConfig 1.0
 
 BusConfig {
-    Process {
-        id: sensor
-        name: "Sensor"
-        exe: "../build/RelWithDebInfo/client.exe"
-        args: ["SensorApp/Launch.qml"]
-        workingDir: "."
-        transport: "stdio"
-        subscribes: ["control"]
+    App {
+        id: sns
+        path: "SensorApp"
     }
-
-    Process {
-        id: display
-        name: "Display"
-        exe: "../build/RelWithDebInfo/client.exe"
-        args: ["DisplayApp/Launch.qml"]
-        workingDir: "."
-        transport: "stdio"
-        subscribes: ["sensor"]
+    App {
+        id: dsp
+        path: "DisplayApp"
     }
 
     Component.onCompleted: {
-        sensor.start()
-        display.start()
+        sns.start()
+        dsp.start()
     }
 }

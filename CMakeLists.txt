@@ -23,6 +23,7 @@ qt_add_library(BusConfigLib STATIC
     bus/config/BusConfigTypes.h
     bus/config/BusConfigLoader.h
     bus/config/BusConfigLoader.cpp
+    bus/config/LaunchSpecReader.h
 )
 target_include_directories(BusConfigLib PUBLIC bus/config bus)
 target_link_libraries(BusConfigLib PUBLIC Qt6::Core Qt6::Qml)
@@ -55,20 +56,12 @@ target_link_libraries(BusTcpTransport PUBLIC Qt6::Core Qt6::Network)
 
 # ── TCP transport plugin placeholder ─────────────────────────────────────────
 # (future: loadable plugin version)
-# qt_add_plugin(TcpTransportPlugin MODULE
-#     transports/tcp/TcpTransport.h
-#     transports/tcp/TcpTransport.cpp
-# )
-# set_target_properties(TcpTransportPlugin PROPERTIES
-#     LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR})
-# target_include_directories(TcpTransportPlugin PRIVATE transports/tcp bus)
-# target_link_libraries(TcpTransportPlugin PRIVATE Qt6::Core Qt6::Network)
+# qt_add_plugin(TcpTransportPlugin MODULE ...)
 
 # ── WebSocket transport plugin (optional) ─────────────────────────────────────
 if(CONCERTO_BUS_WS)
     find_package(Qt6 REQUIRED COMPONENTS WebSockets)
     # Written in Step 4 — placeholder.
-    # qt_add_plugin(WsTransportPlugin MODULE ...)
 endif()
 
 # ── XMPP gateway plugin (optional) ───────────────────────────────────────────
@@ -76,7 +69,6 @@ if(CONCERTO_BUS_XMPP)
     list(APPEND CMAKE_PREFIX_PATH "D:/Qt/qxmpp-installed")
     find_package(QXmppQt6 REQUIRED)
     # Written in Step 6 — placeholder.
-    # qt_add_plugin(XmppGatewayPlugin MODULE ...)
 endif()
 
 # ── Client library ────────────────────────────────────────────────────────────

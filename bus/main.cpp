@@ -31,8 +31,7 @@ int main(int argc, char *argv[])
     BusConfigLoader loader;
     BusConfig *config = loader.load(configPath);
     if (!config) {
-        qCritical() << "Failed to load config:" << configPath;
-        qCritical() << loader.errorString();
+        qCritical() << "Failed to load config:" << configPath << "-" << loader.errorString();
         return 1;
     }
 
@@ -61,7 +60,7 @@ int main(int argc, char *argv[])
 
     // Launch processes marked start() in config.qml Component.onCompleted.
     for (const QString &name : pm.autoLaunchNames()) {
-        qInfo() << "Auto-launching (from config):" << name;
+        qInfo() << "Auto-launching:" << name;
         if (!pm.launch(name))
             qWarning() << "Failed to launch:" << name;
     }
