@@ -27,23 +27,38 @@ private:
     IBusTransport *m_transport = nullptr;
     quint16 m_port = 0;
 
-    // Probe both CMake multi-config layout (plugins/<config>/TcpTransport)
-    // and qmake single-config layout (plugins/TcpTransport).
-    static QString tcpPluginPath() {
+    // Search for TcpTransport plugin, trying several candidate layouts:
+    //   CMake multi-config: <build>/<Config>/tst_qt5client.exe
+    //                       <build>/plugins/<Config>/TcpTransport.dll
+    //   qmake flat:         <build>/tests/tst_qt5client.exe
+    //                       <build>/plugins/TcpTransport.dll
+    //   IDE / flat layout:  <build>/tst_qt5client.exe
+    //                       <build>/plugins/TcpTransport.dll
+    static QStringList tcpPluginCandidates() {
         QDir appDir(QCoreApplication::applicationDirPath());
-        const QString config = appDir.dirName(); // e.g. "RelWithDebInfo" or "debug"
+        const QString cfg = appDir.dirName(); // "RelWithDebInfo", "debug", "tests", …
+        return {
+            // CMake multi-config
+            appDir.absoluteFilePath(QString("../plugins/%1/TcpTransport").arg(cfg)),
+            // qmake: exe in <build>/tests/, plugin in <build>/plugins/
+            appDir.absoluteFilePath("../plugins/TcpTransport"),
+            // flat: exe and plugins/ both directly in build root
+            appDir.absoluteFilePath("plugins/TcpTransport"),
+            // one more level up (some IDE shadow builds)
+            appDir.absoluteFilePath("../../plugins/TcpTransport"),
+        };
+    }
 
-        // CMake/MSVC: test lives in <build>/<config>/, plugin in <build>/plugins/<config>/
-        const QString multiConfig = appDir.absoluteFilePath(
-            QString("../plugins/%1/TcpTransport").arg(config));
-        if (QLibrary::isLibrary(multiConfig + ".dll") ||
-            QLibrary::isLibrary(multiConfig + ".so")  ||
-            QFileInfo::exists(multiConfig + ".dll")   ||
-            QFileInfo::exists(multiConfig + ".so"))
-            return multiConfig;
-
-        // qmake: test lives in <build>/tests/, plugin in <build>/plugins/
-        return appDir.absoluteFilePath("../plugins/TcpTransport");
+    static QString tcpPluginPath() {
+        const QStringList ext = {".dll", ".so", ".dylib"};
+        for (const QString &candidate : tcpPluginCandidates()) {
+            for (const QString &e : ext) {
+                if (QFileInfo::exists(candidate + e))
+                    return candidate;
+            }
+        }
+        // Return first candidate so QPluginLoader reports a useful error
+        return tcpPluginCandidates().first();
     }
 
 private slots:
@@ -51,8 +66,15 @@ private slots:
         m_loader.setFileName(tcpPluginPath());
         m_factory = qobject_cast<IBusTransport *>(m_loader.instance());
         QVERIFY2(m_factory, qPrintable(
-            QString("Cannot load TcpTransport plugin from %1: %2")
-                .arg(tcpPluginPath(), m_loader.errorString())));
+            QString("Cannot load TcpTransport plugin.\n"
+                    "  Tried path : %1\n"
+                    "  Loader error: %2\n"
+                    "  App dir     : %3\n"
+                    "  Candidates  : %4")
+                .arg(m_loader.fileName(),
+                     m_loader.errorString(),
+                     QCoreApplication::applicationDirPath(),
+                     tcpPluginCandidates().join(", "))));
     }
 
     void cleanupTestCase() {
