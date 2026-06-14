@@ -19,7 +19,8 @@ void StdioTransport::addProcess(QProcess *proc)
     m_readBuf.insert(id, {});
 
     connect(proc, &QProcess::readyReadStandardOutput, this, &StdioTransport::onReadyRead);
-    connect(proc, &QProcess::finished,  this, &StdioTransport::onProcessFinished);
+    connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, &StdioTransport::onProcessFinished);
 
     emit clientConnected(id);
 }
