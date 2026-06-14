@@ -18,7 +18,9 @@ SUBDIRS  = \
     tests/stdio_echo_helper \
     tests/tst_stdio \
     tests/tst_buscore \
-    tests/tst_local
+    tests/tst_qt5client \
+    tests/tst_local \
+    demo/Qt5ClientApp
 
 # Uncomment when implemented:
 # SUBDIRS += transports/websocket

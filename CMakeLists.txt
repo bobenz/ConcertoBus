@@ -191,4 +191,12 @@ if(Qt6Test_FOUND)
     add_test(NAME tst_buscore COMMAND tst_buscore -o ${CMAKE_BINARY_DIR}/tst_buscore_result.txt,txt)
     set_tests_properties(tst_buscore PROPERTIES ENVIRONMENT "${TEST_ENV}")
     add_dependencies(tst_buscore stdio_echo_helper)
+
+    # Qt5-compatible raw TCP client test
+    # RawBusClient uses only QtCore + QtNetwork — no ConcertoBus lib dependency.
+    qt_add_executable(tst_qt5client tests/tst_qt5client.cpp demo/Qt5ClientApp/RawBusClient.h)
+    target_include_directories(tst_qt5client PRIVATE bus transports/tcp demo/Qt5ClientApp)
+    target_link_libraries(tst_qt5client PRIVATE BusCoreLib BusTcpTransport Qt6::Test)
+    add_test(NAME tst_qt5client COMMAND tst_qt5client -o ${CMAKE_BINARY_DIR}/tst_qt5client_result.txt,txt)
+    set_tests_properties(tst_qt5client PROPERTIES ENVIRONMENT "${TEST_ENV}")
 endif()
