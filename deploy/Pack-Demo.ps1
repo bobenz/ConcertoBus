@@ -84,8 +84,10 @@ foreach ($exe in @('pm.exe', 'client.exe')) {
     Copy-Item $src $x64Dir
     Ok $exe
 
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
     & $wdq6 --dir $x64Dir --no-translations --no-system-d3d-compiler `
              --no-quick-import --no-opengl-sw $src | Out-Null
+    $ErrorActionPreference = $eap
 }
 Ok "windeployqt6 done ($(@(Get-ChildItem $x64Dir -File).Count) files)"
 
@@ -114,8 +116,10 @@ Ok 'Qt5ClientApp.exe'
 
 $savedPath = $env:PATH
 $env:PATH = "$Qt5Bin;$env:PATH"
+$eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
 & $wdq5 --dir $x86Dir --no-translations --no-system-d3d-compiler `
          --no-quick-import --no-opengl-sw $qt5Exe | Out-Null
+$ErrorActionPreference = $eap
 $env:PATH = $savedPath
 Ok "windeployqt5 done ($(@(Get-ChildItem $x86Dir -File).Count) files)"
 
