@@ -25,6 +25,11 @@ quint16 TcpTransport::port() const
     return m_server->serverPort();
 }
 
+IBusTransport *TcpTransport::createInstance(QObject *parent)
+{
+    return new TcpTransport(parent);
+}
+
 bool TcpTransport::start(const QVariantMap &config)
 {
     return listen(static_cast<quint16>(config.value(QStringLiteral("port"), 49152).toInt()));

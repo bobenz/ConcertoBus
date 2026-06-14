@@ -18,6 +18,7 @@ public:
     quint16 port() const;
 
     // IBusTransport
+    IBusTransport *createInstance(QObject *parent = nullptr) override;
     bool start(const QVariantMap &config) override;
     void send(ClientId id, const QByteArray &json) override;
     void closeClient(ClientId id) override;

@@ -19,6 +19,8 @@ public:
     explicit StdioTransport(QObject *parent = nullptr);
 
     // IBusTransport interface
+    // StdioTransport is statically linked (not a loadable plugin); this is unused.
+    IBusTransport *createInstance(QObject * = nullptr) override { return this; }
     bool start(const QVariantMap &config) override;   // no-op for stdio; always returns true
     void send(ClientId id, const QByteArray &json) override;
     void closeClient(ClientId id) override;

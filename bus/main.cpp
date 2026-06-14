@@ -80,9 +80,9 @@ int main(int argc, char *argv[])
         const QString key = td->plugin().toLower();
         if (key == QLatin1String("stdio"))
             continue;  // stdio is built-in, handled by StdioTransport inside BusCore
-        IBusTransport *t = loadTransport(pluginsDir, key);
-        if (!t) return 1;
-        t->setParent(&app);
+        IBusTransport *factory = loadTransport(pluginsDir, key);
+        if (!factory) return 1;
+        IBusTransport *t = factory->createInstance(&app);
         t->start(td->options());
         core.addTransport(t);
     }

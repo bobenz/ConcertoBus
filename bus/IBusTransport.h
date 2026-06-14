@@ -14,6 +14,10 @@ class IBusTransport : public QObject
 public:
     explicit IBusTransport(QObject *parent = nullptr) : QObject(parent) {}
 
+    // Factory: return a fresh, independent transport instance.
+    // The plugin root object itself is never used as an active transport.
+    virtual IBusTransport *createInstance(QObject *parent = nullptr) = 0;
+
     virtual bool start(const QVariantMap &config) = 0;
     virtual void send(ClientId id, const QByteArray &json) = 0;
     virtual void closeClient(ClientId id) = 0;

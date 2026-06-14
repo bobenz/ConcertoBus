@@ -2,6 +2,7 @@
 #include <QSignalSpy>
 #include <QJsonObject>
 #include <QPluginLoader>
+#include <QDir>
 
 // Pull in the header-only client directly — no ConcertoBus lib dependency.
 #include "RawBusClient.h"
@@ -15,11 +16,16 @@ class TstQt5Client : public QObject
     Q_OBJECT
 
 private:
-    BusCore *m_core = nullptr;
-    quint16  m_port = 0;
+    // Plugin is loaded once for all tests and kept alive.
     QPluginLoader m_loader;
+    IBusTransport *m_factory = nullptr;
 
-    // Plugin is built into plugins/<config>/ beside the test binary's <config>/ dir.
+    // Per-test state.
+    BusCore *m_core = nullptr;
+    IBusTransport *m_transport = nullptr;
+    quint16 m_port = 0;
+
+    // Plugin lives in plugins/<config>/ beside the test binary's <config>/ dir.
     static QString tcpPluginPath() {
         QDir appDir(QCoreApplication::applicationDirPath());
         const QString config = appDir.dirName(); // e.g. "RelWithDebInfo"
@@ -27,30 +33,39 @@ private:
             QString("../plugins/%1/TcpTransport").arg(config));
     }
 
-    void startCore() {
-        // Load the TCP transport plugin.
+private slots:
+    void initTestCase() {
         m_loader.setFileName(tcpPluginPath());
-        auto *transport = qobject_cast<IBusTransport *>(m_loader.instance());
-        QVERIFY2(transport, qPrintable(m_loader.errorString()));
+        m_factory = qobject_cast<IBusTransport *>(m_loader.instance());
+        QVERIFY2(m_factory, qPrintable(
+            QString("Cannot load TcpTransport plugin from %1: %2")
+                .arg(tcpPluginPath(), m_loader.errorString())));
+    }
 
-        // port 0 → OS picks a free port.
+    void cleanupTestCase() {
+        // Keep plugin loaded until process exit to avoid unload/reload race.
+    }
+
+    void init() {
+        // Create a fresh transport instance (not the plugin root) per test.
+        // Parent is nullptr; we delete it explicitly in cleanup().
+        m_transport = m_factory->createInstance();
         QVariantMap cfg;
-        cfg[QStringLiteral("port")] = 0;
-        QVERIFY(transport->start(cfg));
-
-        // Read back the actual port via the Q_PROPERTY exposed by TcpTransport.
-        m_port = transport->property("port").value<quint16>();
+        cfg[QStringLiteral("port")] = 0;  // OS picks a free port
+        QVERIFY(m_transport->start(cfg));
+        m_port = m_transport->property("port").value<quint16>();
         QVERIFY(m_port != 0);
 
         m_core = new BusCore(this);
-        m_core->addTransport(transport);
+        m_core->addTransport(m_transport);
     }
 
-private slots:
-    void init()    { startCore(); }
     void cleanup() {
-        delete m_core; m_core = nullptr;
-        m_loader.unload();
+        // BusCore took ownership of m_transport via addTransport(reparent=true),
+        // so deleting m_core also deletes m_transport.
+        delete m_core;
+        m_core = nullptr;
+        m_transport = nullptr;
     }
 
     void test_registerAndReceive()
