@@ -2,9 +2,8 @@ TEMPLATE = app
 TARGET   = tst_stdio
 CONFIG  += testcase c++17
 QT      += core testlib
-DESTDIR  = $$OUT_PWD
-
-MOC_DIR     = $$OUT_PWD
+DESTDIR  = $$OUT_PWD/..
+MOC_DIR  = $$OUT_PWD
 INCLUDEPATH += $$OUT_PWD ../../bus ../../transports/stdio
 
 SOURCES += ../tst_stdio.cpp

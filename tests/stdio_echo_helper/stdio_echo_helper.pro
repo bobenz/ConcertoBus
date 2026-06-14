@@ -2,10 +2,10 @@ TEMPLATE = app
 TARGET   = stdio_echo_helper
 CONFIG  += c++17
 QT      += core network qml
-DESTDIR  = $$OUT_PWD
+DESTDIR  = $$OUT_PWD/..
 
 INCLUDEPATH += ../../client
 
-SOURCES += ../stdio_echo_helper/main.cpp
+SOURCES += main.cpp
 
 LIBS += -L$$OUT_PWD/../../client -lConcertoBusClient

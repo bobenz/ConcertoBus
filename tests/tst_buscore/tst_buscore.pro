@@ -2,9 +2,8 @@ TEMPLATE = app
 TARGET   = tst_buscore
 CONFIG  += testcase c++17
 QT      += core network testlib
-DESTDIR  = $$OUT_PWD
-
-MOC_DIR     = $$OUT_PWD
+DESTDIR  = $$OUT_PWD/..
+MOC_DIR  = $$OUT_PWD
 INCLUDEPATH += $$OUT_PWD ../../bus ../../transports/stdio ../../transports/tcp
 
 SOURCES += ../tst_buscore.cpp

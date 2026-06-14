@@ -13,6 +13,12 @@ INCLUDEPATH += \
 
 SOURCES += ../bus/main.cpp
 
+# Legacy files (old design — BusServer/Catalog/XmppGateway — kept for reference)
+OTHER_FILES += \
+    ../bus/BusServer.h  ../bus/BusServer.cpp \
+    ../bus/Catalog.h    ../bus/Catalog.cpp \
+    ../bus/XmppGateway.h ../bus/XmppGateway.cpp
+
 LIBS += -L$$OUT_PWD/../bus/config         -lBusConfigLib
 LIBS += -L$$OUT_PWD/../bus/processmanager -lBusProcessManager
 LIBS += -L$$OUT_PWD/../bus/router         -lBusRouter

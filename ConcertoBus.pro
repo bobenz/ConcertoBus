@@ -10,13 +10,15 @@ SUBDIRS  = \
     bus/buscore \
     client \
     client/host \
+    client/qmlplugin \
     daemon \
     tests/tst_config \
     tests/tst_processmanager \
     tests/tst_router \
+    tests/stdio_echo_helper \
     tests/tst_stdio \
     tests/tst_buscore \
-    tests/stdio_echo_helper
+    tests/tst_local
 
 # Uncomment when implemented:
 # SUBDIRS += transports/websocket
