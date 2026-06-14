@@ -2,9 +2,11 @@
 #include <QObject>
 #include <QByteArray>
 #include <QVariantMap>
+#include <QMetaType>
 #include <QtPlugin>
 
 using ClientId = quintptr;
+Q_DECLARE_METATYPE(ClientId)
 
 #define IBusTransport_IID "com.concertobus.IBusTransport/1.0"
 

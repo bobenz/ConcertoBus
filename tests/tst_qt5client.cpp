@@ -2,7 +2,9 @@
 #include <QSignalSpy>
 #include <QJsonObject>
 #include <QPluginLoader>
+#include <QLibrary>
 #include <QDir>
+#include <QFileInfo>
 
 // Pull in the header-only client directly — no ConcertoBus lib dependency.
 #include "RawBusClient.h"
@@ -25,12 +27,23 @@ private:
     IBusTransport *m_transport = nullptr;
     quint16 m_port = 0;
 
-    // Plugin lives in plugins/<config>/ beside the test binary's <config>/ dir.
+    // Probe both CMake multi-config layout (plugins/<config>/TcpTransport)
+    // and qmake single-config layout (plugins/TcpTransport).
     static QString tcpPluginPath() {
         QDir appDir(QCoreApplication::applicationDirPath());
-        const QString config = appDir.dirName(); // e.g. "RelWithDebInfo"
-        return appDir.absoluteFilePath(
+        const QString config = appDir.dirName(); // e.g. "RelWithDebInfo" or "debug"
+
+        // CMake/MSVC: test lives in <build>/<config>/, plugin in <build>/plugins/<config>/
+        const QString multiConfig = appDir.absoluteFilePath(
             QString("../plugins/%1/TcpTransport").arg(config));
+        if (QLibrary::isLibrary(multiConfig + ".dll") ||
+            QLibrary::isLibrary(multiConfig + ".so")  ||
+            QFileInfo::exists(multiConfig + ".dll")   ||
+            QFileInfo::exists(multiConfig + ".so"))
+            return multiConfig;
+
+        // qmake: test lives in <build>/tests/, plugin in <build>/plugins/
+        return appDir.absoluteFilePath("../plugins/TcpTransport");
     }
 
 private slots:

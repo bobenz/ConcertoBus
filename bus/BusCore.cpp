@@ -9,6 +9,7 @@ BusCore::BusCore(QObject *parent)
     , m_router(new Router(this))
     , m_stdio(new StdioTransport(this))
 {
+    qRegisterMetaType<ClientId>("ClientId");
     addTransport(m_stdio, false);
     connect(m_router, &Router::sendToClient, this, [this](ClientId id, const QByteArray &json) {
         auto *transport = m_clientTransport.value(id, nullptr);

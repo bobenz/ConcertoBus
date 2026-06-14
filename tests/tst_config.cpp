@@ -91,7 +91,7 @@ private slots:
         ));
 
         const QString configQml =
-            "import QtQml\n"
+            "import QtQml 2.0\n"
             "import ConcertoBusConfig 1.0\n"
             "BusConfig {\n"
             "    App { id: app; path: \"MyApp\" }\n"
