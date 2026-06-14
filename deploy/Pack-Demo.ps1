@@ -83,12 +83,18 @@ foreach ($exe in @('pm.exe', 'client.exe')) {
     Require $src $exe
     Copy-Item $src $x64Dir
     Ok $exe
-
-    $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-    & $wdq6 --dir $x64Dir --no-translations --no-system-d3d-compiler `
-             --no-quick-import --no-opengl-sw $src | Out-Null
-    $ErrorActionPreference = $eap
 }
+
+# Deploy Qt6 + MSVC runtime DLLs.
+# client.exe is a QML host so we keep Quick imports; pm.exe doesn't need them.
+$eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+& $wdq6 --dir $x64Dir --no-translations --no-system-d3d-compiler `
+         --no-quick-import --no-opengl-sw --compiler-runtime `
+         (Join-Path $BuildDir 'pm.exe') | Out-Null
+& $wdq6 --dir $x64Dir --no-translations --no-system-d3d-compiler `
+         --no-opengl-sw --compiler-runtime `
+         (Join-Path $BuildDir 'client.exe') | Out-Null
+$ErrorActionPreference = $eap
 Ok "windeployqt6 done ($(@(Get-ChildItem $x64Dir -File).Count) files)"
 
 # Transport plugins -- pm.exe loads these from plugins\ at runtime.
@@ -118,7 +124,7 @@ $savedPath = $env:PATH
 $env:PATH = "$Qt5Bin;$env:PATH"
 $eap = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
 & $wdq5 --dir $x86Dir --no-translations --no-system-d3d-compiler `
-         --no-quick-import --no-opengl-sw $qt5Exe | Out-Null
+         --no-quick-import --no-opengl-sw --compiler-runtime $qt5Exe | Out-Null
 $ErrorActionPreference = $eap
 $env:PATH = $savedPath
 Ok "windeployqt5 done ($(@(Get-ChildItem $x86Dir -File).Count) files)"
@@ -240,7 +246,7 @@ reference and how to build your own apps on top of the bus.
 
 System requirements
 -------------------
-  Demo 1 / 2  : Windows 10+, no install required (DLLs included)
+  Windows 10+, no install required -- Qt DLLs and MSVC runtime included
   Qt5 client  : 32-bit (x86) process -- runs on any 64-bit Windows
   Qt6 daemon  : 64-bit (x64) process
 
