@@ -114,14 +114,6 @@ qt_add_executable(ConcertoBusHost
 )
 set_target_properties(ConcertoBusHost PROPERTIES OUTPUT_NAME "client")
 
-# ── Demo TCP controller (connects via TCP, launches Display, publishes data) ──
-qt_add_executable(demo_controller
-    demo/controller/main.cpp
-)
-target_include_directories(demo_controller PRIVATE client)
-target_link_libraries(demo_controller PRIVATE
-    ConcertoBusClient Qt6::Core Qt6::Network
-)
 target_include_directories(ConcertoBusHost PRIVATE client)
 target_link_libraries(ConcertoBusHost PRIVATE
     ConcertoBusClient Qt6::Core Qt6::Qml
