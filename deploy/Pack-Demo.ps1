@@ -72,7 +72,7 @@ $demoDir = New-Item -ItemType Directory (Join-Path $OutDir 'demo') | Select-Obje
 Write-Host "Output: $OutDir" -ForegroundColor Yellow
 
 # -- Step 1: Qt6 binaries (x64) -----------------------------------------------
-Step '[1/5] Qt6 x64 -- pm.exe + client.exe'
+Step '[1/5] Qt6 x64 -- pm.exe + client.exe + TcpTransport plugin'
 
 $wdq6 = Join-Path $Qt6Bin 'windeployqt6.exe'
 if (-not (Test-Path $wdq6)) { $wdq6 = Join-Path $Qt6Bin 'windeployqt.exe' }
@@ -88,6 +88,18 @@ foreach ($exe in @('pm.exe', 'client.exe')) {
              --no-quick-import --no-opengl-sw $src | Out-Null
 }
 Ok "windeployqt6 done ($(@(Get-ChildItem $x64Dir -File).Count) files)"
+
+# Transport plugins -- pm.exe loads these from plugins\ at runtime.
+$x64PluginsDir = New-Item -ItemType Directory (Join-Path $x64Dir 'plugins') |
+                 Select-Object -Exp FullName
+
+$tcpPlugin = Join-Path $BuildDir '..\plugins\RelWithDebInfo\TcpTransport.dll'
+if (-not (Test-Path $tcpPlugin)) {
+    $tcpPlugin = Join-Path $BuildDir '..\plugins\TcpTransport.dll'
+}
+Require $tcpPlugin 'TcpTransport.dll (plugin)'
+Copy-Item $tcpPlugin $x64PluginsDir
+Ok "plugins\TcpTransport.dll"
 
 # -- Step 2: Qt5 binary (x86) -------------------------------------------------
 Step '[2/5] Qt5 x86 -- Qt5ClientApp.exe'
@@ -180,6 +192,8 @@ Contents
     pm.exe          Bus daemon (process manager)
     client.exe      Generic QML application host
     Qt6*.dll        Qt 6 runtime DLLs
+    plugins\
+      TcpTransport.dll  TCP transport plugin (loaded by pm.exe at startup)
 
   x86\              Qt5 x86 binaries
     Qt5ClientApp.exe  Minimal TCP listener demo (built with Qt 5.15)
