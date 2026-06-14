@@ -1,13 +1,14 @@
 #include <QtTest>
 #include <QSignalSpy>
 #include <QJsonObject>
+#include <QPluginLoader>
 
 // Pull in the header-only client directly — no ConcertoBus lib dependency.
-#include "../../demo/Qt5ClientApp/RawBusClient.h"
+#include "RawBusClient.h"
 
 // We spin up a real BusCore in-process so the test is self-contained.
 #include "BusCore.h"
-#include "TcpTransport.h"
+#include "IBusTransport.h"
 
 class TstQt5Client : public QObject
 {
@@ -16,18 +17,41 @@ class TstQt5Client : public QObject
 private:
     BusCore *m_core = nullptr;
     quint16  m_port = 0;
+    QPluginLoader m_loader;
+
+    // Plugin is built into plugins/<config>/ beside the test binary's <config>/ dir.
+    static QString tcpPluginPath() {
+        QDir appDir(QCoreApplication::applicationDirPath());
+        const QString config = appDir.dirName(); // e.g. "RelWithDebInfo"
+        return appDir.absoluteFilePath(
+            QString("../plugins/%1/TcpTransport").arg(config));
+    }
 
     void startCore() {
+        // Load the TCP transport plugin.
+        m_loader.setFileName(tcpPluginPath());
+        auto *transport = qobject_cast<IBusTransport *>(m_loader.instance());
+        QVERIFY2(transport, qPrintable(m_loader.errorString()));
+
+        // port 0 → OS picks a free port.
+        QVariantMap cfg;
+        cfg[QStringLiteral("port")] = 0;
+        QVERIFY(transport->start(cfg));
+
+        // Read back the actual port via the Q_PROPERTY exposed by TcpTransport.
+        m_port = transport->property("port").value<quint16>();
+        QVERIFY(m_port != 0);
+
         m_core = new BusCore(this);
-        auto *tcp = new TcpTransport(this);
-        tcp->listen(0);          // OS picks a free port
-        m_port = tcp->port();
-        m_core->addTransport(tcp);
+        m_core->addTransport(transport);
     }
 
 private slots:
     void init()    { startCore(); }
-    void cleanup() { delete m_core; m_core = nullptr; }
+    void cleanup() {
+        delete m_core; m_core = nullptr;
+        m_loader.unload();
+    }
 
     void test_registerAndReceive()
     {
@@ -38,16 +62,14 @@ private slots:
         QSignalSpy receiverReady(&receiver, &RawBusClient::connected);
         QSignalSpy msgSpy       (&receiver, &RawBusClient::messageReceived);
 
-        // Connect sequentially: complete each register handshake before the next
-        // connectToBus() call so readyRead events don't race across two loops.
+        // Connect sequentially: complete each register handshake before the next.
         sender.connectToBus();
         QVERIFY(senderReady.wait(5000));
         receiver.connectToBus();
         QVERIFY(receiverReady.wait(5000));
 
-        // Subscribe receiver, then publish from sender
         receiver.subscribe("data");
-        QTest::qWait(50);   // let subscribe reach the server
+        QTest::qWait(50);
 
         sender.publish("data", QJsonObject{{"x", 99}});
 
@@ -60,7 +82,6 @@ private slots:
 
     void test_offlineQueue()
     {
-        // Publish before subscriber exists — bus must queue and drain on subscribe.
         RawBusClient producer("Producer", "127.0.0.1", m_port);
         QSignalSpy prodReady(&producer, &RawBusClient::connected);
         producer.connectToBus();
@@ -75,7 +96,7 @@ private slots:
         consumer.connectToBus();
         QVERIFY(consReady.wait(5000));
 
-        consumer.subscribe("queue");   // should drain the queued message
+        consumer.subscribe("queue");
 
         QVERIFY(msgSpy.wait(5000));
         QCOMPARE(msgSpy[0][2].value<QJsonObject>()["msg"].toString(),
@@ -85,7 +106,7 @@ private slots:
     void test_duplicateName()
     {
         RawBusClient first ("App", "127.0.0.1", m_port);
-        RawBusClient second("App", "127.0.0.1", m_port);   // same name
+        RawBusClient second("App", "127.0.0.1", m_port);
 
         QSignalSpy firstReady (&first,  &RawBusClient::connected);
         QSignalSpy secondError(&second, &RawBusClient::errorOccurred);

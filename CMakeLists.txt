@@ -46,17 +46,21 @@ qt_add_library(BusStdioTransport STATIC
 target_include_directories(BusStdioTransport PUBLIC transports/stdio bus)
 target_link_libraries(BusStdioTransport PUBLIC Qt6::Core)
 
-# ── TCP transport (built-in, statically linked into daemon) ──────────────────
-qt_add_library(BusTcpTransport STATIC
+# ── TCP transport plugin (loaded at runtime via QPluginLoader) ────────────────
+qt_add_plugin(TcpTransportPlugin MODULE
+    CLASS_NAME TcpTransport
+    bus/IBusTransport.h
+    bus/IBusTransport.cpp
     transports/tcp/TcpTransport.h
     transports/tcp/TcpTransport.cpp
 )
-target_include_directories(BusTcpTransport PUBLIC transports/tcp bus)
-target_link_libraries(BusTcpTransport PUBLIC Qt6::Core Qt6::Network)
-
-# ── TCP transport plugin placeholder ─────────────────────────────────────────
-# (future: loadable plugin version)
-# qt_add_plugin(TcpTransportPlugin MODULE ...)
+set_target_properties(TcpTransportPlugin PROPERTIES OUTPUT_NAME "TcpTransport")
+target_include_directories(TcpTransportPlugin PRIVATE transports/tcp bus)
+target_link_libraries(TcpTransportPlugin PRIVATE Qt6::Core Qt6::Network)
+set_target_properties(TcpTransportPlugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+)
 
 # ── WebSocket transport plugin (optional) ─────────────────────────────────────
 if(CONCERTO_BUS_WS)
@@ -132,13 +136,12 @@ qt_add_executable(ConcertoBusDaemon
     bus/main.cpp
 )
 set_target_properties(ConcertoBusDaemon PROPERTIES OUTPUT_NAME "pm")
-target_include_directories(ConcertoBusDaemon PRIVATE bus transports/tcp)
+target_include_directories(ConcertoBusDaemon PRIVATE bus)
 target_link_libraries(ConcertoBusDaemon PRIVATE
     Qt6::Core Qt6::Network Qt6::Qml
     BusConfigLib
     BusProcessManager
     BusCoreLib
-    BusTcpTransport
 )
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -190,13 +193,15 @@ if(Qt6Test_FOUND)
     target_link_libraries(tst_buscore PRIVATE BusCoreLib BusProcessManager Qt6::Test)
     add_test(NAME tst_buscore COMMAND tst_buscore -o ${CMAKE_BINARY_DIR}/tst_buscore_result.txt,txt)
     set_tests_properties(tst_buscore PROPERTIES ENVIRONMENT "${TEST_ENV}")
-    add_dependencies(tst_buscore stdio_echo_helper)
+    add_dependencies(tst_buscore stdio_echo_helper TcpTransportPlugin)
 
     # Qt5-compatible raw TCP client test
     # RawBusClient uses only QtCore + QtNetwork — no ConcertoBus lib dependency.
+    # TcpTransport is loaded via QPluginLoader from PLUGIN_OUTPUT_DIR.
     qt_add_executable(tst_qt5client tests/tst_qt5client.cpp demo/Qt5ClientApp/RawBusClient.h)
-    target_include_directories(tst_qt5client PRIVATE bus transports/tcp demo/Qt5ClientApp)
-    target_link_libraries(tst_qt5client PRIVATE BusCoreLib BusTcpTransport Qt6::Test)
+    target_include_directories(tst_qt5client PRIVATE bus demo/Qt5ClientApp)
+    target_link_libraries(tst_qt5client PRIVATE BusCoreLib Qt6::Test)
     add_test(NAME tst_qt5client COMMAND tst_qt5client -o ${CMAKE_BINARY_DIR}/tst_qt5client_result.txt,txt)
     set_tests_properties(tst_qt5client PROPERTIES ENVIRONMENT "${TEST_ENV}")
+    add_dependencies(tst_qt5client TcpTransportPlugin)
 endif()

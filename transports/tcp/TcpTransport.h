@@ -5,12 +5,12 @@
 class QTcpServer;
 class QTcpSocket;
 
-// Built-in TCP transport: listens on a port, assigns ClientId = quintptr(socket).
-// Socket pointer addresses are large enough to never collide with StdioTransport's
-// small integer IDs.
 class TcpTransport : public IBusTransport
 {
     Q_OBJECT
+    Q_INTERFACES(IBusTransport)
+    Q_PLUGIN_METADATA(IID IBusTransport_IID FILE "TcpTransport.json")
+    Q_PROPERTY(quint16 port READ port CONSTANT)
 public:
     explicit TcpTransport(QObject *parent = nullptr);
 
