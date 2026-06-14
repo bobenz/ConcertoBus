@@ -3,7 +3,8 @@ TARGET   = tst_router
 CONFIG  += testcase c++17
 QT      += core testlib
 
-INCLUDEPATH += ../../bus
+MOC_DIR     = $$OUT_PWD
+INCLUDEPATH += $$OUT_PWD ../../bus
 
 SOURCES += ../tst_router.cpp
 
