@@ -45,8 +45,16 @@ qt_add_library(BusStdioTransport STATIC
 target_include_directories(BusStdioTransport PUBLIC transports/stdio bus)
 target_link_libraries(BusStdioTransport PUBLIC Qt6::Core)
 
-# ── TCP transport plugin ──────────────────────────────────────────────────────
-# Written in Step 3 — placeholder.
+# ── TCP transport (built-in, statically linked into daemon) ──────────────────
+qt_add_library(BusTcpTransport STATIC
+    transports/tcp/TcpTransport.h
+    transports/tcp/TcpTransport.cpp
+)
+target_include_directories(BusTcpTransport PUBLIC transports/tcp bus)
+target_link_libraries(BusTcpTransport PUBLIC Qt6::Core Qt6::Network)
+
+# ── TCP transport plugin placeholder ─────────────────────────────────────────
+# (future: loadable plugin version)
 # qt_add_plugin(TcpTransportPlugin MODULE
 #     transports/tcp/TcpTransport.h
 #     transports/tcp/TcpTransport.cpp
@@ -105,6 +113,15 @@ qt_add_executable(ConcertoBusHost
     client/host/main.cpp
 )
 set_target_properties(ConcertoBusHost PROPERTIES OUTPUT_NAME "client")
+
+# ── Demo TCP controller (connects via TCP, launches Display, publishes data) ──
+qt_add_executable(demo_controller
+    demo/controller/main.cpp
+)
+target_include_directories(demo_controller PRIVATE client)
+target_link_libraries(demo_controller PRIVATE
+    ConcertoBusClient Qt6::Core Qt6::Network
+)
 target_include_directories(ConcertoBusHost PRIVATE client)
 target_link_libraries(ConcertoBusHost PRIVATE
     ConcertoBusClient Qt6::Core Qt6::Qml
@@ -131,12 +148,13 @@ qt_add_executable(ConcertoBusDaemon
     bus/main.cpp
 )
 set_target_properties(ConcertoBusDaemon PROPERTIES OUTPUT_NAME "pm")
-target_include_directories(ConcertoBusDaemon PRIVATE bus)
+target_include_directories(ConcertoBusDaemon PRIVATE bus transports/tcp)
 target_link_libraries(ConcertoBusDaemon PRIVATE
     Qt6::Core Qt6::Network Qt6::Qml
     BusConfigLib
     BusProcessManager
     BusCoreLib
+    BusTcpTransport
 )
 
 # ── Tests ─────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 #include "BusCore.h"
 #include "ProcessManager.h"
+#include "TcpTransport.h"
 #include "config/BusConfigLoader.h"
 #include "config/BusConfigTypes.h"
 #include <QCoreApplication>
@@ -31,6 +32,7 @@ int main(int argc, char *argv[])
     BusConfig *config = loader.load(configPath);
     if (!config) {
         qCritical() << "Failed to load config:" << configPath;
+        qCritical() << loader.errorString();
         return 1;
     }
 
@@ -39,7 +41,11 @@ int main(int argc, char *argv[])
     ProcessManager pm;
     pm.load(config, configDir);
 
+    TcpTransport tcp;
+    tcp.listen(49152);
+
     BusCore core;
+    core.addTransport(&tcp);
     core.setProcessManager(&pm);
 
     // When a stdio process (re)starts, attach it to the bus.

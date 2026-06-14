@@ -126,15 +126,20 @@ void BusClient::processLine(const QByteArray &line)
             msg[QStringLiteral("data")].toObject());
         return;
     }
-    if (msg.contains(QStringLiteral("status"))) {
-        if (msg[QStringLiteral("status")].toString() == QLatin1String("ready"))
-            emit launchReady(msg[QStringLiteral("name")].toString());
+    if (msg.contains(QStringLiteral("event"))) {
+        const QString event = msg[QStringLiteral("event")].toString();
+        const QString name  = msg[QStringLiteral("name")].toString();
+        if (event == QLatin1String("process_started"))
+            emit launchReady(name);
+        else if (event == QLatin1String("process_stopped") || event == QLatin1String("process_crashed"))
+            emit launchError(name, event);
+        // "launching" is informational — silently ignored
         return;
     }
     if (msg.contains(QStringLiteral("error"))) {
         const QString e = msg[QStringLiteral("error")].toString();
-        if (e == QLatin1String("not_found") || e == QLatin1String("launch_failed"))
-            emit launchError(QString(), e);
+        if (e == QLatin1String("unknown_process") || e == QLatin1String("launch_failed"))
+            emit launchError(msg[QStringLiteral("name")].toString(), e);
         else
             emit errorOccurred(e);
         return;
