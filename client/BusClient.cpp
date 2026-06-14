@@ -75,12 +75,11 @@ void BusClient::launch(const QString &name)
 
 void BusClient::onConnected()
 {
-    emit connectedChanged();
     if (!m_name.isEmpty()) {
         sendCmd(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("register")},
                             {QStringLiteral("name"), m_name}});
-        m_registered = true;
     }
+    // connectedChanged() is emitted from processLine() on {"ok":true}
 }
 
 void BusClient::onDisconnected()
@@ -144,5 +143,9 @@ void BusClient::processLine(const QByteArray &line)
             emit errorOccurred(e);
         return;
     }
-    // "ok" acks silently ignored
+    // {"ok":true} is the register acknowledgement
+    if (msg[QStringLiteral("ok")].toBool() && !m_registered) {
+        m_registered = true;
+        emit connectedChanged();
+    }
 }
