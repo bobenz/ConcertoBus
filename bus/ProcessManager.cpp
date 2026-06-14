@@ -1,6 +1,7 @@
 #include "ProcessManager.h"
 #include "config/BusConfigTypes.h"
 
+#include <QDir>
 #include <QProcess>
 #include <QTimer>
 
@@ -20,11 +21,12 @@ ProcessManager::~ProcessManager()
     }
 }
 
-bool ProcessManager::load(BusConfig *config)
+bool ProcessManager::load(BusConfig *config, const QString &configDir)
 {
     if (!config)
         return false;
 
+    m_configDir = configDir;
     m_entries.clear();
 
     for (ProcessDef *def : config->processList()) {
@@ -79,8 +81,20 @@ bool ProcessManager::launch(const QString &name)
     delete e.process;
     e.process = new QProcess(this);
 
-    if (!e.workingDir.isEmpty())
-        e.process->setWorkingDirectory(e.workingDir);
+    // Resolve relative paths against the config file's directory
+    auto resolve = [this](const QString &path) -> QString {
+        if (path.isEmpty() || m_configDir.isEmpty() || QDir::isAbsolutePath(path))
+            return path;
+        return QDir(m_configDir).absoluteFilePath(path);
+    };
+
+    const QString workDir = resolve(e.workingDir);
+    if (!workDir.isEmpty())
+        e.process->setWorkingDirectory(workDir);
+
+    // Forward child stderr to our stderr so console.log / qDebug from child apps
+    // are visible in the terminal without mixing with the stdout JSON protocol.
+    e.process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
 
     // Reset restart counter once the process stays alive for kStableUptimeMs
     QTimer *stableTimer = new QTimer(e.process);
@@ -107,7 +121,7 @@ bool ProcessManager::launch(const QString &name)
             onProcessFinished(name, -1, static_cast<int>(QProcess::CrashExit));
     });
 
-    e.process->start(e.exe, e.args);
+    e.process->start(resolve(e.exe), e.args);
     return e.process->waitForStarted(3000) || e.process->state() == QProcess::Starting;
 }
 

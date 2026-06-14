@@ -112,7 +112,7 @@ void StdioBusClient::sendJson(const QJsonObject &obj)
 #ifdef Q_OS_WIN
         _setmode(_fileno(stdout), _O_BINARY);
 #endif
-        m_stdout->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered);
+        Q_UNUSED(m_stdout->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered));
     }
     m_stdout->write(QJsonDocument(obj).toJson(QJsonDocument::Compact) + '\n');
     Q_UNUSED(m_stdout->flush());

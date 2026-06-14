@@ -1,4 +1,4 @@
-#include <QGuiApplication>
+#include <QCoreApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -14,7 +14,7 @@
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    QCoreApplication app(argc, argv);
 
     if (argc < 2) {
         qCritical("Usage: ConcertoBusHost <path/to/Launch.qml>");

@@ -4,6 +4,8 @@
 #include "config/BusConfigTypes.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
 #include <QDebug>
 
 int main(int argc, char *argv[])
@@ -16,6 +18,7 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption({{"c","config"}, "Path to bus config QML file", "config"});
+    parser.addOption({{"l","launch"}, "Launch a named process on startup (repeatable)", "name"});
     parser.process(app);
 
     const QString configPath = parser.value("config");
@@ -31,14 +34,15 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    const QString configDir = QFileInfo(configPath).absoluteDir().absolutePath();
+
     ProcessManager pm;
-    pm.load(config);
+    pm.load(config, configDir);
 
     BusCore core;
     core.setProcessManager(&pm);
 
-    // autoRestart re-attach: when PM relaunches a crashed stdio process,
-    // re-attach the new QProcess to StdioTransport so routing continues.
+    // When a stdio process (re)starts, attach it to the bus.
     QObject::connect(&pm, &ProcessManager::processStarted, &core,
                      [&pm, &core](const QString &name) {
         if (pm.transportFor(name) == QLatin1String("stdio")) {
@@ -48,5 +52,13 @@ int main(int argc, char *argv[])
     });
 
     qInfo() << "ConcertoBusDaemon started. Defined processes:" << pm.names();
+
+    // --launch <name>: auto-launch named processes from the command line.
+    for (const QString &name : parser.values("launch")) {
+        qInfo() << "Auto-launching:" << name;
+        if (!pm.launch(name))
+            qWarning() << "Failed to launch:" << name;
+    }
+
     return app.exec();
 }

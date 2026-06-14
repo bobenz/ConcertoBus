@@ -104,9 +104,10 @@ target_link_libraries(ConcertoBusQml PRIVATE ConcertoBusClient Qt6::Qml Qt6::Qui
 qt_add_executable(ConcertoBusHost
     client/host/main.cpp
 )
+set_target_properties(ConcertoBusHost PROPERTIES OUTPUT_NAME "client")
 target_include_directories(ConcertoBusHost PRIVATE client)
 target_link_libraries(ConcertoBusHost PRIVATE
-    ConcertoBusClient Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick
+    ConcertoBusClient Qt6::Core Qt6::Qml
 )
 
 # ── BusCore (wires StdioTransport + Router) ───────────────────────────────────
@@ -125,10 +126,11 @@ qt_add_library(BusRouter STATIC
 target_include_directories(BusRouter PUBLIC bus)
 target_link_libraries(BusRouter PUBLIC Qt6::Core)
 
-# ── Bus daemon ────────────────────────────────────────────────────────────────
+# ── Bus daemon (pm.exe) ───────────────────────────────────────────────────────
 qt_add_executable(ConcertoBusDaemon
     bus/main.cpp
 )
+set_target_properties(ConcertoBusDaemon PROPERTIES OUTPUT_NAME "pm")
 target_include_directories(ConcertoBusDaemon PRIVATE bus)
 target_link_libraries(ConcertoBusDaemon PRIVATE
     Qt6::Core Qt6::Network Qt6::Qml
