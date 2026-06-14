@@ -140,16 +140,23 @@ void ProcessManager::kill(const QString &name)
 void ProcessManager::restart(const QString &name)
 {
     kill(name);
-    // kill() is async — wait for finished, then re-launch
+    // kill() is async — wait for finished, then re-launch.
+    // Use a QMetaObject::Connection kept in a shared_ptr so the lambda can
+    // disconnect itself after firing once (Qt 5/6 compatible alternative to
+    // Qt::SingleShotConnection which requires Qt 6).
     if (m_entries.contains(name) && m_entries[name].process) {
-        connect(m_entries[name].process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-                this, [this, name]() {
-            if (m_destroying || !m_entries.contains(name))
-                return;
-            m_entries[name].autoRestart = true;
-            launch(name);
-            emit processRestarted(name);
-        }, Qt::SingleShotConnection);
+        auto connPtr = std::make_shared<QMetaObject::Connection>();
+        *connPtr = connect(
+            m_entries[name].process,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this, name, connPtr]() {
+                QObject::disconnect(*connPtr);
+                if (m_destroying || !m_entries.contains(name))
+                    return;
+                m_entries[name].autoRestart = true;
+                launch(name);
+                emit processRestarted(name);
+            });
         m_entries[name].autoRestart = false; // suppress normal autoRestart until re-launch
     }
 }

@@ -37,16 +37,18 @@ void BusCore::attachProcess(QProcess *proc, const QStringList &autoSubscribeTags
     // We don't know the ClientId yet — it comes from addProcess → clientConnected.
     // Stash the tags keyed by process pointer; onClientConnected will look them up.
     // Use a temporary connection to capture the id for this specific process.
-    connect(m_stdio, &IBusTransport::clientConnected, this,
-            [this, proc, autoSubscribeTags](ClientId id) {
-                // Check that this id actually belongs to proc.
-                // Since addProcess fires clientConnected synchronously we can match
-                // by checking m_stdio immediately.
+    // Temporary one-shot connection: capture the ClientId when this process
+    // connects, then disconnect. Using shared_ptr for Qt 5/6 compatibility
+    // (Qt::SingleShotConnection requires Qt 6).
+    auto connPtr = std::make_shared<QMetaObject::Connection>();
+    *connPtr = connect(m_stdio, &IBusTransport::clientConnected, this,
+            [this, proc, autoSubscribeTags, connPtr](ClientId id) {
+                QObject::disconnect(*connPtr);
                 if (m_pendingAutoSubs.contains(id))
                     return; // already handled
                 m_pendingAutoSubs.insert(id, autoSubscribeTags);
                 Q_UNUSED(proc)
-            }, Qt::SingleShotConnection);
+            });
 
     m_stdio->addProcess(proc);
 }
