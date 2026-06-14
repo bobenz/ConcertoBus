@@ -1,10 +1,12 @@
 TEMPLATE = lib
-TARGET   = BusTcpTransport
-CONFIG  += staticlib c++17
+TARGET   = TcpTransport
+CONFIG  += plugin c++17
 QT      += core network
-DESTDIR  = $$OUT_PWD
+DESTDIR  = $$OUT_PWD/../../plugins
 
 INCLUDEPATH += ../../bus
 
-HEADERS += TcpTransport.h
-SOURCES += TcpTransport.cpp
+HEADERS += ../../bus/IBusTransport.h TcpTransport.h
+SOURCES += ../../bus/IBusTransport.cpp TcpTransport.cpp
+
+OTHER_FILES += TcpTransport.json
