@@ -39,6 +39,7 @@ bool ProcessManager::load(BusConfig *config, const QString &configDir)
         e.workingDir   = def->workingDir();
         e.subscribes   = def->subscribes();
         e.transport    = def->transport();
+        e.autoLaunch   = def->autoLaunch();
         e.autoRestart  = def->autoRestart();
         e.restartDelayMs = def->restartDelay();
         e.maxRestarts  = def->maxRestarts();
@@ -169,6 +170,15 @@ bool ProcessManager::isRunning(const QString &name) const
 QStringList ProcessManager::names() const
 {
     return m_entries.keys();
+}
+
+QStringList ProcessManager::autoLaunchNames() const
+{
+    QStringList result;
+    for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it)
+        if (it->autoLaunch)
+            result << it.key();
+    return result;
 }
 
 QStringList ProcessManager::subscriptionsFor(const QString &name) const

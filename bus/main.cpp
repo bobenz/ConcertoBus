@@ -59,9 +59,16 @@ int main(int argc, char *argv[])
 
     qInfo() << "ConcertoBusDaemon started. Defined processes:" << pm.names();
 
-    // --launch <name>: auto-launch named processes from the command line.
+    // Launch processes marked start() in config.qml Component.onCompleted.
+    for (const QString &name : pm.autoLaunchNames()) {
+        qInfo() << "Auto-launching (from config):" << name;
+        if (!pm.launch(name))
+            qWarning() << "Failed to launch:" << name;
+    }
+
+    // --launch <name>: additional overrides from the command line.
     for (const QString &name : parser.values("launch")) {
-        qInfo() << "Auto-launching:" << name;
+        qInfo() << "Auto-launching (from CLI):" << name;
         if (!pm.launch(name))
             qWarning() << "Failed to launch:" << name;
     }

@@ -35,6 +35,7 @@ public:
     bool isRunning(const QString &name) const;
     QProcess *processFor(const QString &name) const;
     QStringList names() const;
+    QStringList autoLaunchNames() const;
     QStringList subscriptionsFor(const QString &name) const;
     QString transportFor(const QString &name) const;
 
@@ -53,6 +54,7 @@ private:
         QString workingDir;
         QStringList subscribes;
         QString transport;          // "stdio" or "tcp"
+        bool autoLaunch  = false;
         bool autoRestart = false;
         int restartDelayMs = 1000;
         int maxRestarts = 5;

@@ -40,6 +40,10 @@ public:
     void setRestartDelay(int v)          { if (m_restartDelay != v){ m_restartDelay = v; emit restartDelayChanged(); } }
     void setMaxRestarts(int v)           { if (m_maxRestarts != v) { m_maxRestarts = v;  emit maxRestartsChanged(); } }
 
+    // Called from Component.onCompleted in config.qml to request auto-launch.
+    Q_INVOKABLE void start() { m_autoLaunch = true; }
+    bool autoLaunch() const { return m_autoLaunch; }
+
 signals:
     void nameChanged();
     void exeChanged();
@@ -58,6 +62,7 @@ private:
     QString m_workingDir;
     QString m_transport;
     QStringList m_subscribes;
+    bool m_autoLaunch  = false;
     bool m_autoRestart = false;
     int m_restartDelay = 1000;
     int m_maxRestarts = 5;
