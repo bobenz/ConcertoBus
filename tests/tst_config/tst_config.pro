@@ -2,6 +2,7 @@ TEMPLATE = app
 TARGET   = tst_config
 CONFIG  += testcase c++17
 QT      += core qml testlib
+DESTDIR  = $$OUT_PWD
 
 MOC_DIR     = $$OUT_PWD
 INCLUDEPATH += $$OUT_PWD ../../bus ../../bus/config

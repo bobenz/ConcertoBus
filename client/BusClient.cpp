@@ -2,10 +2,9 @@
 
 #include <QJsonDocument>
 #include <QTcpSocket>
-#include <QDebug>
 
 BusClient::BusClient(QObject *parent)
-    : QObject(parent)
+    : AbstractBusClient(parent)
     , m_socket(new QTcpSocket(this))
 {
     connect(m_socket, &QTcpSocket::connected,    this, &BusClient::onConnected);
@@ -33,9 +32,9 @@ void BusClient::setName(const QString &n)
     if (m_name == n) return;
     m_name = n;
     emit nameChanged();
-    // Re-register if already connected
     if (isConnected() && !n.isEmpty())
-        sendCmd(QJsonObject{{"cmd","register"},{"name",n}});
+        sendCmd(QJsonObject{{QStringLiteral("cmd"), QStringLiteral("register")},
+                            {QStringLiteral("name"), n}});
 }
 
 bool BusClient::isConnected() const
@@ -49,37 +48,38 @@ void BusClient::connectToBus()
     m_socket->connectToHost(m_host, static_cast<quint16>(m_port));
 }
 
-void BusClient::subscribe(const QString &topic)
+void BusClient::subscribe(const QString &tag)
 {
-    sendCmd(QJsonObject{{"cmd","subscribe"},{"to",topic}});
+    sendCmd(QJsonObject{{QStringLiteral("cmd"), QStringLiteral("subscribe")},
+                        {QStringLiteral("tag"), tag}});
 }
 
-void BusClient::unsubscribe(const QString &topic)
+void BusClient::unsubscribe(const QString &tag)
 {
-    sendCmd(QJsonObject{{"cmd","unsubscribe"},{"to",topic}});
+    sendCmd(QJsonObject{{QStringLiteral("cmd"), QStringLiteral("unsubscribe")},
+                        {QStringLiteral("tag"), tag}});
 }
 
-void BusClient::publish(const QString &topic, const QJsonObject &data)
+void BusClient::publish(const QString &to, const QJsonObject &data)
 {
-    QJsonObject cmd;
-    cmd["cmd"]  = "publish";
-    cmd["to"]   = topic;
-    cmd["data"] = data;
-    sendCmd(cmd);
+    sendCmd(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("publish")},
+                        {QStringLiteral("to"),   to},
+                        {QStringLiteral("data"), data}});
 }
 
 void BusClient::launch(const QString &name)
 {
-    sendCmd(QJsonObject{{"cmd","launch"},{"name",name}});
+    sendCmd(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("launch")},
+                        {QStringLiteral("name"), name}});
 }
 
 void BusClient::onConnected()
 {
-    emit connectedChanged();
     if (!m_name.isEmpty()) {
-        sendCmd(QJsonObject{{"cmd","register"},{"name",m_name}});
-        m_registered = true;
+        sendCmd(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("register")},
+                            {QStringLiteral("name"), m_name}});
     }
+    // connectedChanged() is emitted from processLine() on {"ok":true}
 }
 
 void BusClient::onDisconnected()
@@ -100,50 +100,52 @@ void BusClient::onReadyRead()
     }
 }
 
-void BusClient::onError(QAbstractSocket::SocketError err)
+void BusClient::onError(QAbstractSocket::SocketError)
 {
-    qWarning() << "BusClient: socket error" << err << m_socket->errorString();
+    emit errorOccurred(m_socket->errorString());
 }
 
 void BusClient::sendCmd(const QJsonObject &cmd)
 {
-    if (!isConnected()) {
-        qWarning() << "BusClient: not connected, dropping cmd" << cmd["cmd"].toString();
-        return;
-    }
-    QByteArray line = QJsonDocument(cmd).toJson(QJsonDocument::Compact);
-    line += '\n';
-    m_socket->write(line);
+    if (!isConnected()) return;
+    m_socket->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + '\n');
 }
 
 void BusClient::processLine(const QByteArray &line)
 {
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(line, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qWarning() << "BusClient: bad JSON from bus:" << line;
-        return;
-    }
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return;
     const QJsonObject msg = doc.object();
 
-    if (msg.contains("push")) {
-        emit messageReceived(msg["from"].toString(), msg["data"].toObject());
+    if (msg[QStringLiteral("push")].toBool()) {
+        emit messageReceived(
+            msg[QStringLiteral("from")].toString(),
+            msg[QStringLiteral("sender")].toString(),
+            msg[QStringLiteral("data")].toObject());
         return;
     }
-    if (msg.contains("status")) {
-        const QString status = msg["status"].toString();
-        if (status == "ready")
-            emit launchReady(msg["name"].toString());
+    if (msg.contains(QStringLiteral("event"))) {
+        const QString event = msg[QStringLiteral("event")].toString();
+        const QString name  = msg[QStringLiteral("name")].toString();
+        if (event == QLatin1String("process_started"))
+            emit launchReady(name);
+        else if (event == QLatin1String("process_stopped") || event == QLatin1String("process_crashed"))
+            emit launchError(name, event);
+        // "launching" is informational — silently ignored
         return;
     }
-    if (msg.contains("error")) {
-        const QString e = msg["error"].toString();
-        // Propagate launch errors
-        if (e == "not_found" || e == "launch_failed")
-            emit launchError(QString(), e);
+    if (msg.contains(QStringLiteral("error"))) {
+        const QString e = msg[QStringLiteral("error")].toString();
+        if (e == QLatin1String("unknown_process") || e == QLatin1String("launch_failed"))
+            emit launchError(msg[QStringLiteral("name")].toString(), e);
         else
-            qWarning() << "BusClient: bus error:" << e;
+            emit errorOccurred(e);
         return;
     }
-    // "ok" acks — silently ignored
+    // {"ok":true} is the register acknowledgement
+    if (msg[QStringLiteral("ok")].toBool() && !m_registered) {
+        m_registered = true;
+        emit connectedChanged();
+    }
 }

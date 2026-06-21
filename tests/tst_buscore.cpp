@@ -21,6 +21,7 @@ class FakeTransport : public IBusTransport
 public:
     explicit FakeTransport(QObject *parent = nullptr) : IBusTransport(parent) {}
 
+    IBusTransport *createInstance(QObject *p = nullptr) override { return new FakeTransport(p); }
     bool start(const QVariantMap &) override { return true; }
     void send(ClientId id, const QByteArray &json) override { m_sent.append(qMakePair(id, json)); }
     void closeClient(ClientId) override {}

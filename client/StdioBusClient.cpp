@@ -2,7 +2,6 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QThread>
-#include <QCoreApplication>
 
 #ifdef Q_OS_WIN
 #  include <io.h>
@@ -10,8 +9,6 @@
 #  include <windows.h>
 #endif
 
-// Reads stdin line-by-line in a background thread.
-// On Windows uses ReadFile directly (QSocketNotifier doesn't work on pipes).
 class StdinReader : public QThread
 {
     Q_OBJECT
@@ -63,7 +60,7 @@ signals:
 
 // ── StdioBusClient ─────────────────────────────────────────────────────────────
 
-StdioBusClient::StdioBusClient(QObject *parent) : QObject(parent) {}
+StdioBusClient::StdioBusClient(QObject *parent) : AbstractBusClient(parent) {}
 
 StdioBusClient::~StdioBusClient()
 {
@@ -84,37 +81,28 @@ void StdioBusClient::setName(const QString &name)
 void StdioBusClient::connectToBus()
 {
     startReading();
-    if (!m_name.isEmpty()) {
-        sendJson(QJsonObject{
-            {QStringLiteral("cmd"),  QStringLiteral("register")},
-            {QStringLiteral("name"), m_name}
-        });
-    }
+    if (!m_name.isEmpty())
+        sendJson(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("register")},
+                             {QStringLiteral("name"), m_name}});
 }
 
 void StdioBusClient::subscribe(const QString &tag)
 {
-    sendJson(QJsonObject{
-        {QStringLiteral("cmd"), QStringLiteral("subscribe")},
-        {QStringLiteral("tag"), tag}
-    });
+    sendJson(QJsonObject{{QStringLiteral("cmd"), QStringLiteral("subscribe")},
+                         {QStringLiteral("tag"), tag}});
 }
 
 void StdioBusClient::unsubscribe(const QString &tag)
 {
-    sendJson(QJsonObject{
-        {QStringLiteral("cmd"), QStringLiteral("unsubscribe")},
-        {QStringLiteral("tag"), tag}
-    });
+    sendJson(QJsonObject{{QStringLiteral("cmd"), QStringLiteral("unsubscribe")},
+                         {QStringLiteral("tag"), tag}});
 }
 
 void StdioBusClient::publish(const QString &to, const QJsonObject &data)
 {
-    sendJson(QJsonObject{
-        {QStringLiteral("cmd"),  QStringLiteral("publish")},
-        {QStringLiteral("to"),   to},
-        {QStringLiteral("data"), data}
-    });
+    sendJson(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("publish")},
+                         {QStringLiteral("to"),   to},
+                         {QStringLiteral("data"), data}});
 }
 
 void StdioBusClient::sendJson(const QJsonObject &obj)
@@ -124,11 +112,10 @@ void StdioBusClient::sendJson(const QJsonObject &obj)
 #ifdef Q_OS_WIN
         _setmode(_fileno(stdout), _O_BINARY);
 #endif
-        m_stdout->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered);
+        Q_UNUSED(m_stdout->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered));
     }
-    QByteArray line = QJsonDocument(obj).toJson(QJsonDocument::Compact) + '\n';
-    m_stdout->write(line);
-    m_stdout->flush();
+    m_stdout->write(QJsonDocument(obj).toJson(QJsonDocument::Compact) + '\n');
+    Q_UNUSED(m_stdout->flush());
 }
 
 void StdioBusClient::startReading()
@@ -157,7 +144,7 @@ void StdioBusClient::processLine(const QByteArray &line)
     if (obj[QStringLiteral("ok")].toBool()) {
         if (!m_registered) {
             m_registered = true;
-            emit registeredChanged();
+            emit connectedChanged();
         }
         return;
     }

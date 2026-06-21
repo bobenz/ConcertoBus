@@ -5,6 +5,31 @@
 #include <QVariantMap>
 #include <QtQml/QQmlListProperty>
 
+// ---------------------------------------------------------------------------
+// AppDef — lightweight app descriptor used in config.qml
+// pm.exe reads each app's Launch.qml to get the full spec.
+// ---------------------------------------------------------------------------
+class AppDef : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
+public:
+    explicit AppDef(QObject *parent = nullptr) : QObject(parent) {}
+
+    QString path() const { return m_path; }
+    void setPath(const QString &p) { if (m_path != p) { m_path = p; emit pathChanged(); } }
+
+    Q_INVOKABLE void start() { m_autoLaunch = true; }
+    bool autoLaunch() const { return m_autoLaunch; }
+
+signals:
+    void pathChanged();
+
+private:
+    QString m_path;
+    bool m_autoLaunch = false;
+};
+
 class ProcessDef : public QObject
 {
     Q_OBJECT
@@ -40,6 +65,10 @@ public:
     void setRestartDelay(int v)          { if (m_restartDelay != v){ m_restartDelay = v; emit restartDelayChanged(); } }
     void setMaxRestarts(int v)           { if (m_maxRestarts != v) { m_maxRestarts = v;  emit maxRestartsChanged(); } }
 
+    // Called from Component.onCompleted in config.qml to request auto-launch.
+    Q_INVOKABLE void start() { m_autoLaunch = true; }
+    bool autoLaunch() const { return m_autoLaunch; }
+
 signals:
     void nameChanged();
     void exeChanged();
@@ -58,6 +87,7 @@ private:
     QString m_workingDir;
     QString m_transport;
     QStringList m_subscribes;
+    bool m_autoLaunch  = false;
     bool m_autoRestart = false;
     int m_restartDelay = 1000;
     int m_maxRestarts = 5;
@@ -138,22 +168,28 @@ private:
 class BusConfig : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QQmlListProperty<ProcessDef>   processes   READ processes)
-    Q_PROPERTY(QQmlListProperty<TransportDef> transports  READ transports)
-    Q_PROPERTY(QQmlListProperty<GatewayDef>   gateways    READ gateways)
-    Q_CLASSINFO("DefaultProperty", "processes")
+    // Default property: App {} items in config.qml
+    Q_PROPERTY(QQmlListProperty<AppDef>      apps        READ apps)
+    Q_PROPERTY(QQmlListProperty<TransportDef> transports READ transports)
+    Q_PROPERTY(QQmlListProperty<GatewayDef>   gateways   READ gateways)
+    Q_CLASSINFO("DefaultProperty", "apps")
 public:
     explicit BusConfig(QObject *parent = nullptr) : QObject(parent) {}
 
-    QQmlListProperty<ProcessDef>   processes()  { return QQmlListProperty<ProcessDef>(this, &m_processes); }
+    QQmlListProperty<AppDef>       apps()       { return QQmlListProperty<AppDef>(this, &m_apps); }
     QQmlListProperty<TransportDef> transports() { return QQmlListProperty<TransportDef>(this, &m_transports); }
     QQmlListProperty<GatewayDef>   gateways()   { return QQmlListProperty<GatewayDef>(this, &m_gateways); }
 
-    const QList<ProcessDef*>   &processList()   const { return m_processes; }
+    const QList<AppDef*>      &appList()       const { return m_apps; }
     const QList<TransportDef*> &transportList() const { return m_transports; }
     const QList<GatewayDef*>   &gatewayList()   const { return m_gateways; }
 
+    // Populated by BusConfigLoader after expanding each AppDef via Launch.qml
+    void addProcess(ProcessDef *p) { m_processes.append(p); }
+    const QList<ProcessDef*> &processList() const { return m_processes; }
+
 private:
+    QList<AppDef*>       m_apps;
     QList<ProcessDef*>   m_processes;
     QList<TransportDef*> m_transports;
     QList<GatewayDef*>   m_gateways;

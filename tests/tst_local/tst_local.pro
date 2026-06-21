@@ -1,19 +1,8 @@
-TEMPLATE = app
-TARGET   = tst_local
-CONFIG  += testcase c++17
-QT      += core network testlib
+# Legacy test — written against the old BusServer/Catalog/Router API.
+# Kept for reference only; excluded from the build.
+TEMPLATE = aux
 
-INCLUDEPATH += ../../bus ../../client
-
-SOURCES += \
+OTHER_FILES += \
     ../tst_local.cpp \
-    ../../bus/BusServer.cpp \
-    ../../bus/Router.cpp \
-    ../../bus/Catalog.cpp
-
-HEADERS += \
-    ../../bus/BusServer.h \
-    ../../bus/Router.h \
-    ../../bus/Catalog.h
-
-LIBS += -L$$OUT_PWD/../../client -lConcertoBusClient
+    ../../bus/BusServer.h  ../../bus/BusServer.cpp \
+    ../../bus/Catalog.h    ../../bus/Catalog.cpp

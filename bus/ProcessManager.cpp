@@ -1,6 +1,7 @@
 #include "ProcessManager.h"
 #include "config/BusConfigTypes.h"
 
+#include <QDir>
 #include <QProcess>
 #include <QTimer>
 
@@ -20,11 +21,12 @@ ProcessManager::~ProcessManager()
     }
 }
 
-bool ProcessManager::load(BusConfig *config)
+bool ProcessManager::load(BusConfig *config, const QString &configDir)
 {
     if (!config)
         return false;
 
+    m_configDir = configDir;
     m_entries.clear();
 
     for (ProcessDef *def : config->processList()) {
@@ -37,6 +39,7 @@ bool ProcessManager::load(BusConfig *config)
         e.workingDir   = def->workingDir();
         e.subscribes   = def->subscribes();
         e.transport    = def->transport();
+        e.autoLaunch   = def->autoLaunch();
         e.autoRestart  = def->autoRestart();
         e.restartDelayMs = def->restartDelay();
         e.maxRestarts  = def->maxRestarts();
@@ -79,8 +82,20 @@ bool ProcessManager::launch(const QString &name)
     delete e.process;
     e.process = new QProcess(this);
 
-    if (!e.workingDir.isEmpty())
-        e.process->setWorkingDirectory(e.workingDir);
+    // Resolve relative paths against the config file's directory
+    auto resolve = [this](const QString &path) -> QString {
+        if (path.isEmpty() || m_configDir.isEmpty() || QDir::isAbsolutePath(path))
+            return path;
+        return QDir(m_configDir).absoluteFilePath(path);
+    };
+
+    const QString workDir = resolve(e.workingDir);
+    if (!workDir.isEmpty())
+        e.process->setWorkingDirectory(workDir);
+
+    // Forward child stderr to our stderr so console.log / qDebug from child apps
+    // are visible in the terminal without mixing with the stdout JSON protocol.
+    e.process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
 
     // Reset restart counter once the process stays alive for kStableUptimeMs
     QTimer *stableTimer = new QTimer(e.process);
@@ -107,7 +122,7 @@ bool ProcessManager::launch(const QString &name)
             onProcessFinished(name, -1, static_cast<int>(QProcess::CrashExit));
     });
 
-    e.process->start(e.exe, e.args);
+    e.process->start(resolve(e.exe), e.args);
     return e.process->waitForStarted(3000) || e.process->state() == QProcess::Starting;
 }
 
@@ -125,16 +140,23 @@ void ProcessManager::kill(const QString &name)
 void ProcessManager::restart(const QString &name)
 {
     kill(name);
-    // kill() is async — wait for finished, then re-launch
+    // kill() is async — wait for finished, then re-launch.
+    // Use a QMetaObject::Connection kept in a shared_ptr so the lambda can
+    // disconnect itself after firing once (Qt 5/6 compatible alternative to
+    // Qt::SingleShotConnection which requires Qt 6).
     if (m_entries.contains(name) && m_entries[name].process) {
-        connect(m_entries[name].process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-                this, [this, name]() {
-            if (m_destroying || !m_entries.contains(name))
-                return;
-            m_entries[name].autoRestart = true;
-            launch(name);
-            emit processRestarted(name);
-        }, Qt::SingleShotConnection);
+        auto connPtr = std::make_shared<QMetaObject::Connection>();
+        *connPtr = connect(
+            m_entries[name].process,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this, name, connPtr]() {
+                QObject::disconnect(*connPtr);
+                if (m_destroying || !m_entries.contains(name))
+                    return;
+                m_entries[name].autoRestart = true;
+                launch(name);
+                emit processRestarted(name);
+            });
         m_entries[name].autoRestart = false; // suppress normal autoRestart until re-launch
     }
 }
@@ -155,6 +177,15 @@ bool ProcessManager::isRunning(const QString &name) const
 QStringList ProcessManager::names() const
 {
     return m_entries.keys();
+}
+
+QStringList ProcessManager::autoLaunchNames() const
+{
+    QStringList result;
+    for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it)
+        if (it->autoLaunch)
+            result << it.key();
+    return result;
 }
 
 QStringList ProcessManager::subscriptionsFor(const QString &name) const

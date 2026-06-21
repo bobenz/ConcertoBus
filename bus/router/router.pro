@@ -4,7 +4,7 @@ CONFIG  += staticlib c++17
 QT      += core
 DESTDIR  = $$OUT_PWD
 
-INCLUDEPATH += .. ..
+INCLUDEPATH += ..
 
 HEADERS += ../Router.h ../IBusTransport.h
 SOURCES += ../Router.cpp

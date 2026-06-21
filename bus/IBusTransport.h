@@ -2,9 +2,11 @@
 #include <QObject>
 #include <QByteArray>
 #include <QVariantMap>
+#include <QMetaType>
 #include <QtPlugin>
 
 using ClientId = quintptr;
+Q_DECLARE_METATYPE(ClientId)
 
 #define IBusTransport_IID "com.concertobus.IBusTransport/1.0"
 
@@ -13,6 +15,10 @@ class IBusTransport : public QObject
     Q_OBJECT
 public:
     explicit IBusTransport(QObject *parent = nullptr) : QObject(parent) {}
+
+    // Factory: return a fresh, independent transport instance.
+    // The plugin root object itself is never used as an active transport.
+    virtual IBusTransport *createInstance(QObject *parent = nullptr) = 0;
 
     virtual bool start(const QVariantMap &config) = 0;
     virtual void send(ClientId id, const QByteArray &json) = 0;

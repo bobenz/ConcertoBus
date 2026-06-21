@@ -8,7 +8,8 @@ INCLUDEPATH += . ..
 
 HEADERS += \
     BusConfigTypes.h \
-    BusConfigLoader.h
+    BusConfigLoader.h \
+    LaunchSpecReader.h
 
 SOURCES += \
     BusConfigLoader.cpp
