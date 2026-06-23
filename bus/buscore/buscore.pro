@@ -6,5 +6,5 @@ DESTDIR  = $$OUT_PWD
 
 INCLUDEPATH += .. ../config ../processmanager ../../transports/stdio
 
-HEADERS += ../BusCore.h
-SOURCES += ../BusCore.cpp
+HEADERS += ../BusCore.h ../IBusGateway.h
+SOURCES += ../BusCore.cpp ../IBusGateway.cpp
