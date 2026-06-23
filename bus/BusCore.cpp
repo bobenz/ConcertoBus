@@ -54,6 +54,29 @@ void BusCore::attachProcess(QProcess *proc, const QStringList &autoSubscribeTags
     m_stdio->addProcess(proc);
 }
 
+void BusCore::addGateway(IBusGateway *gw)
+{
+    m_gateways.append(gw);
+    connect(m_router, &Router::published, gw, &IBusGateway::onLocalPublish);
+    connect(gw, &IBusGateway::remotePublished, this,
+            [this](const QString &tag, const QString &sender, const QJsonObject &data) {
+                m_router->handlePublish(tag, sender, data);
+            });
+    connect(gw, &IBusGateway::remoteEvent, this,
+            [this](const QString &event, const QString &name) {
+                notifyWatchers(name, QJsonObject{
+                    {QStringLiteral("event"), event},
+                    {QStringLiteral("name"), name}});
+            });
+    connect(gw, &IBusGateway::remoteCommand, this,
+            [this](const QString &cmd, const QString &name) {
+                if (!m_pm) return;
+                if (cmd == QLatin1String("launch"))        m_pm->launch(name);
+                else if (cmd == QLatin1String("kill"))     m_pm->kill(name);
+                else if (cmd == QLatin1String("restart"))  m_pm->restart(name);
+            });
+}
+
 void BusCore::setProcessManager(ProcessManager *pm)
 {
     m_pm = pm;
@@ -71,7 +94,10 @@ void BusCore::onClientDisconnected(ClientId id)
     // Remove this client from all watcher lists
     for (auto &watchers : m_processWatchers)
         watchers.removeAll(id);
-    if (!name.isEmpty()) emit clientGone(id, name);
+    if (!name.isEmpty()) {
+        for (IBusGateway *gw : m_gateways) gw->onLocalUnregister(name);
+        emit clientGone(id, name);
+    }
 }
 
 void BusCore::onMessageReceived(ClientId id, const QByteArray &json)
@@ -104,6 +130,7 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         const QStringList tags = m_pendingAutoSubs.take(id);
         for (const QString &tag : tags)
             m_router->handleSubscribe(id, tag);
+        for (IBusGateway *gw : m_gateways) gw->onLocalRegister(name);
         emit clientRegistered(id, name);
         // Notify any clients waiting for this process to come up
         if (m_processWatchers.contains(name)) {
@@ -124,11 +151,17 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
 
     if (c == QLatin1String("subscribe")) {
         const QString tag = cmd[QStringLiteral("tag")].toString();
-        if (!tag.isEmpty()) m_router->handleSubscribe(id, tag);
+        if (!tag.isEmpty()) {
+            m_router->handleSubscribe(id, tag);
+            for (IBusGateway *gw : m_gateways) gw->onLocalSubscribe(tag);
+        }
         sendJson(id, QJsonObject{{QStringLiteral("ok"), true}});
     } else if (c == QLatin1String("unsubscribe")) {
         const QString tag = cmd[QStringLiteral("tag")].toString();
-        if (!tag.isEmpty()) m_router->handleUnsubscribe(id, tag);
+        if (!tag.isEmpty()) {
+            m_router->handleUnsubscribe(id, tag);
+            for (IBusGateway *gw : m_gateways) gw->onLocalUnsubscribe(tag);
+        }
         sendJson(id, QJsonObject{{QStringLiteral("ok"), true}});
     } else if (c == QLatin1String("publish")) {
         const QString to   = cmd[QStringLiteral("to")].toString();

@@ -1,5 +1,6 @@
 #include "BusCore.h"
 #include "IBusTransport.h"
+#include "IBusGateway.h"
 #include "ProcessManager.h"
 #include "config/BusConfigLoader.h"
 #include "config/BusConfigTypes.h"
@@ -9,6 +10,26 @@
 #include <QFileInfo>
 #include <QPluginLoader>
 #include <QDebug>
+
+static IBusGateway *loadGateway(const QString &gatewaysDir, const QString &key)
+{
+    const QDir dir(gatewaysDir);
+    const QString name = dir.absoluteFilePath(
+        key.at(0).toUpper() + key.mid(1) + QStringLiteral("Gateway"));
+    QPluginLoader loader(name);
+    QObject *obj = loader.instance();
+    if (!obj) {
+        qCritical() << "Cannot load gateway plugin" << key << ":" << loader.errorString();
+        return nullptr;
+    }
+    auto *gw = qobject_cast<IBusGateway *>(obj);
+    if (!gw) {
+        qCritical() << "Plugin" << loader.fileName() << "does not implement IBusGateway";
+        return nullptr;
+    }
+    qInfo() << "Loaded gateway plugin:" << loader.fileName();
+    return gw;
+}
 
 static IBusTransport *loadTransport(const QString &pluginsDir, const QString &key)
 {
@@ -68,9 +89,10 @@ int main(int argc, char *argv[])
     ProcessManager pm;
     pm.load(config, configDir);
 
-    // Plugins live beside the daemon executable.
-    const QString pluginsDir =
-        QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("plugins");
+    // Transport plugins live in plugins/, gateway plugins in gateways/.
+    const QString appDir     = QCoreApplication::applicationDirPath();
+    const QString pluginsDir = QDir(appDir).absoluteFilePath("plugins");
+    const QString gatewaysDir = QDir(appDir).absoluteFilePath("gateways");
 
     BusCore core;
     core.setProcessManager(&pm);
@@ -85,6 +107,14 @@ int main(int argc, char *argv[])
         IBusTransport *t = factory->createInstance(&app);
         t->start(td->options());
         core.addTransport(t);
+    }
+
+    // Load gateway plugins declared in config.
+    for (GatewayDef *gd : config->gatewayList()) {
+        IBusGateway *gw = loadGateway(gatewaysDir, gd->plugin().toLower());
+        if (!gw) return 1;
+        gw->start(gd->options());
+        core.addGateway(gw);
     }
 
     // When a stdio process (re)starts, attach it to the bus.

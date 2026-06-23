@@ -72,7 +72,21 @@ endif()
 if(CONCERTO_BUS_XMPP)
     list(APPEND CMAKE_PREFIX_PATH "D:/Qt/qxmpp-installed")
     find_package(QXmppQt6 REQUIRED)
-    # Written in Step 6 — placeholder.
+
+    set(GATEWAY_OUTPUT_DIR "${CMAKE_BINARY_DIR}/gateways")
+
+    qt_add_plugin(XmppGatewayPlugin MODULE
+        CLASS_NAME XmppGateway
+        bus/IBusGateway.h
+        gateways/xmpp/XmppGateway.h
+        gateways/xmpp/XmppGateway.cpp
+    )
+    set_target_properties(XmppGatewayPlugin PROPERTIES
+        OUTPUT_NAME "XmppGateway"
+        LIBRARY_OUTPUT_DIRECTORY "${GATEWAY_OUTPUT_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY "${GATEWAY_OUTPUT_DIR}")
+    target_include_directories(XmppGatewayPlugin PRIVATE bus)
+    target_link_libraries(XmppGatewayPlugin PRIVATE Qt6::Core Qt6::Network QXmpp::QXmpp)
 endif()
 
 # ── Client library ────────────────────────────────────────────────────────────
@@ -117,6 +131,8 @@ target_link_libraries(ConcertoBusHost PRIVATE
 
 # ── BusCore (wires StdioTransport + Router) ───────────────────────────────────
 qt_add_library(BusCoreLib STATIC
+    bus/IBusGateway.h
+    bus/IBusGateway.cpp
     bus/BusCore.h
     bus/BusCore.cpp
 )

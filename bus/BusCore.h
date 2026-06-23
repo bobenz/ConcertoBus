@@ -1,8 +1,10 @@
 #pragma once
 #include "Router.h"
 #include "IBusTransport.h"
+#include "IBusGateway.h"
 #include <QHash>
 #include <QJsonObject>
+#include <QList>
 #include <QObject>
 #include <QSet>
 
@@ -32,6 +34,10 @@ public:
     // and PM lifecycle signals are pushed to watching clients.
     void setProcessManager(ProcessManager *pm);
 
+    // Add a federation gateway. BusCore connects Router::published to the gateway
+    // and feeds gateway::remotePublished back into the Router.
+    void addGateway(IBusGateway *gw);
+
     Router *router() const { return m_router; }
 
 signals:
@@ -56,6 +62,7 @@ private:
 
     // transport that owns each client
     QHash<ClientId, IBusTransport *> m_clientTransport;
+    QList<IBusGateway *> m_gateways;
 
     // clients not yet registered: id → auto-subscribe tags queued from attachProcess
     QHash<ClientId, QStringList> m_pendingAutoSubs;

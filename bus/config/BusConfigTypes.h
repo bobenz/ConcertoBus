@@ -140,16 +140,21 @@ public:
     void setPlugin(const QString &v)      { if (m_plugin != v) { m_plugin = v; emit pluginChanged(); } }
     void setOptions(const QVariantMap &v) { m_options = v; emit optionsChanged(); }
 
-    // Common XMPP-style properties forwarded into options map
-    Q_PROPERTY(QString server READ server WRITE setServer NOTIFY serverChanged)
-    Q_PROPERTY(QString user   READ user   WRITE setUser   NOTIFY userChanged)
+    // Common gateway properties forwarded into options map
+    Q_PROPERTY(QString server   READ server   WRITE setServer   NOTIFY serverChanged)
+    Q_PROPERTY(QString user     READ user     WRITE setUser     NOTIFY userChanged)
     Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
-    QString server() const   { return m_options.value(QStringLiteral("server")).toString(); }
-    QString user() const     { return m_options.value(QStringLiteral("user")).toString(); }
-    QString password() const { return m_options.value(QStringLiteral("password")).toString(); }
-    void setServer(const QString &v)   { m_options[QStringLiteral("server")] = v;   emit serverChanged();   emit optionsChanged(); }
-    void setUser(const QString &v)     { m_options[QStringLiteral("user")] = v;     emit userChanged();     emit optionsChanged(); }
-    void setPassword(const QString &v) { m_options[QStringLiteral("password")] = v; emit passwordChanged(); emit optionsChanged(); }
+    Q_PROPERTY(QStringList peers READ peers   WRITE setPeers    NOTIFY peersChanged)
+
+    QString     server()   const { return m_options.value(QStringLiteral("server")).toString(); }
+    QString     user()     const { return m_options.value(QStringLiteral("user")).toString(); }
+    QString     password() const { return m_options.value(QStringLiteral("password")).toString(); }
+    QStringList peers()    const { return m_options.value(QStringLiteral("peers")).toStringList(); }
+
+    void setServer(const QString &v)     { m_options[QStringLiteral("server")] = v;   emit serverChanged();   emit optionsChanged(); }
+    void setUser(const QString &v)       { m_options[QStringLiteral("user")] = v;     emit userChanged();     emit optionsChanged(); }
+    void setPassword(const QString &v)   { m_options[QStringLiteral("password")] = v; emit passwordChanged(); emit optionsChanged(); }
+    void setPeers(const QStringList &v)  { m_options[QStringLiteral("peers")] = v;    emit peersChanged();    emit optionsChanged(); }
 
 signals:
     void pluginChanged();
@@ -157,6 +162,7 @@ signals:
     void serverChanged();
     void userChanged();
     void passwordChanged();
+    void peersChanged();
 
 private:
     QString m_plugin;
