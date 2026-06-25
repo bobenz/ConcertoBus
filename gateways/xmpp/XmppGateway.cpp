@@ -6,7 +6,6 @@
 #include <QXmppPresence.h>
 #include <QXmppRosterManager.h>
 
-#include <QXmppLogger.h>
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,11 +16,6 @@ XmppGateway::XmppGateway(QObject *parent)
     : IBusGateway(parent)
     , m_client(new QXmppClient(this))
 {
-    auto *logger = QXmppLogger::getLogger();
-    logger->setLoggingType(QXmppLogger::StdoutLogging);
-    logger->setMessageTypes(QXmppLogger::AnyMessage);
-    m_client->setLogger(logger);
-
     m_roster = m_client->findExtension<QXmppRosterManager>();
 
     connect(m_client, &QXmppClient::presenceReceived,
@@ -136,7 +130,6 @@ void XmppGateway::onLocalUnregister(const QString &name)
 
 void XmppGateway::onLocalSubscribe(const QString &tag)
 {
-    qInfo() << "XmppGateway: onLocalSubscribe tag=" << tag << "peers=" << m_peers;
     if (!m_localTags.contains(tag))
         m_localTags.append(tag);
     // Tell every peer: "please relay this tag to us".
@@ -160,8 +153,6 @@ void XmppGateway::onLocalPublish(const QString &tag, const QString &sender,
                                   const QJsonObject &data)
 {
     const QStringList &targets = m_relayTo.value(tag);
-    qInfo() << "XmppGateway: onLocalPublish tag=" << tag
-            << "sender=" << sender << "relayTargets=" << targets;
     if (targets.isEmpty()) return;
 
     QJsonObject body;
@@ -209,9 +200,6 @@ void XmppGateway::onPresenceReceived(const QXmppPresence &presence)
 void XmppGateway::onMessageReceived(const QXmppMessage &msg)
 {
     const QString senderJid = msg.from().section(QLatin1Char('/'), 0, 0);
-    qInfo() << "XmppGateway: onMessageReceived from=" << msg.from()
-            << "bareJid=" << senderJid << "knownPeer=" << m_peers.contains(senderJid)
-            << "body=" << msg.body().left(120);
     if (!m_peers.contains(senderJid)) return; // ignore unknown senders
 
     const QByteArray raw = msg.body().toUtf8();
