@@ -77,7 +77,7 @@ function Copy-WithLog([string]$src, [string]$dest) {
 function Run-WinDeployQt([string]$exePath) {
     $wd = Join-Path $QtBin 'windeployqt.exe'
     Require-File $wd "-QtBin parameter"
-    & $wd --no-quick-import --no-translations --no-system-d3d-compiler --release $exePath
+    & $wd --no-translations --no-system-d3d-compiler --release $exePath
     if ($LASTEXITCODE -ne 0) { Write-Error "windeployqt failed for $exePath" }
 }
 
@@ -158,6 +158,26 @@ foreach ($runner in @('runner-a','runner-b')) {
     Run-WinDeployQt (Join-Path $OutDir "$runner\client.exe")
 }
 
+# ── Step 3b: Copy Qt QML modules needed by pm.exe config loader ──────────────
+# windeployqt scans the executable's imports but the daemon loads config.qml
+# at runtime, which pulls in QtQml.  Copy the required qml/ subdirectories.
+Write-Host "`n[3b] Copying Qt QML modules (QtQml)..." -ForegroundColor Cyan
+$QtQml = Join-Path (Split-Path $QtBin) 'qml'
+$NeededQmlModules = @('QtQml', 'QtQml\Models', 'QtQml\WorkerScript')
+foreach ($runner in @('runner-a','runner-b')) {
+    foreach ($mod in $NeededQmlModules) {
+        $src  = Join-Path $QtQml $mod
+        $dest = Join-Path $OutDir "$runner\qml\$mod"
+        if (Test-Path $src) {
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            Copy-Item (Join-Path $src '*') -Destination $dest -Force
+            Write-Host "      $runner\qml\$mod"
+        } else {
+            Write-Warning "Qt QML module not found: $src"
+        }
+    }
+}
+
 # ── Step 4: Copy demo app QML files ──────────────────────────────────────────
 Write-Host "`n[4/5] Copying demo QML apps..." -ForegroundColor Cyan
 $DemoDir = Join-Path $RepoRoot 'demo'
@@ -231,6 +251,7 @@ Write-Host "      config.qml (passwords left as CHANGE_ME)"
 $runBat = '@echo off
 cd /d "%~dp0"
 set QML_IMPORT_PATH=%~dp0imports
+set QML2_IMPORT_PATH=%~dp0qml;%~dp0imports
 pm.exe -c config.qml
 pause
 '
