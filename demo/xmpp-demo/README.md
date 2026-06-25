@@ -15,20 +15,20 @@ Runner A (client1@xmpp.credics)        Runner B (client2@xmpp.credics)
 ## Build
 
 ```powershell
-cmake -B build/xmpp -DCONCERTO_BUS_XMPP=ON -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
-cmake --build build/xmpp --config RelWithDebInfo
+cmake -B build -DCONCERTO_BUS_XMPP=ON -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
+cmake --build build --config RelWithDebInfo
 ```
 
 ## Run (from project root)
 
 **Runner A** (start first):
 ```
-build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-a\config.qml
+build\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-a\config.qml
 ```
 
 **Runner B** (any order):
 ```
-build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-b\config.qml
+build\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-b\config.qml
 ```
 
 Once both runners connect to `xmpp.credics`, DisplayApp will receive

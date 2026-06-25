@@ -3,7 +3,7 @@
 // DisplayApp on Runner B receives Sensor's published messages.
 //
 // Run (from project root):
-//   build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-a\config.qml
+//   build\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-a\config.qml
 
 import QtQml 2.0
 import ConcertoBusConfig 1.0

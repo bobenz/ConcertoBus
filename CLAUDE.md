@@ -7,13 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Requires Qt 6 (Core, Network, Qml, Quick) and MSVC 2022 on Windows. Qt is expected at `D:\Qt\6.10.3\msvc2022_64`.
 
 ```powershell
-# Standard build (no XMPP)
-cmake -B build -G "Ninja" -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
+# Standard build (QXmpp at D:\Qt\qxmpp-installed, included in main build)
+cmake -B build -DCONCERTO_BUS_XMPP=ON -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
 cmake --build build --config RelWithDebInfo
-
-# With XMPP federation (requires QXmpp installed at D:\Qt\qxmpp-installed)
-cmake -B build/xmpp-test -DCONCERTO_BUS_XMPP=ON -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
-cmake --build build/xmpp-test --config RelWithDebInfo
 ```
 
 ## Tests
