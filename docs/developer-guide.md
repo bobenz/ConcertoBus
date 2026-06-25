@@ -9,11 +9,16 @@ a unique name, subscribes to tags, and publishes messages. The daemon routes
 each published message to every subscriber of that tag. Nothing else — no
 schema, no types, no RPC framework.
 
+**Any process that can read/write newline-delimited JSON is a participant** —
+Qt/QML apps, Python scripts, Node.js services, C++ without Qt, shell scripts
+via `nc`. The protocol is language and runtime agnostic.
+
 ```
-  SensorApp ──stdio──► pm.exe ──stdio──► ShellApp
-                │                   ▲
-                │   TCP             │
-                └───────► Qt5Client─┘
+  QtApp (stdio) ──► pm.exe ──► QtApp (stdio)
+                      │    ▲
+                      │    │ TCP
+                      ▼    │
+                   PythonScript / NodeService / any TCP client
 ```
 
 ---
@@ -433,6 +438,113 @@ busClient.injectQml("ShellApp", "MyPanel", "file:///D:/apps/Panel.qml", "")
 busClient.injectQml("ShellApp", "Counter", "",
     "import QtQuick 2.0; Text { text: 'Hello'; color: 'white' }")
 ```
+
+---
+
+## Non-QML clients
+
+Any process that can read and write UTF-8 newline-delimited JSON is a
+first-class participant. There is nothing QML-specific about the protocol.
+
+### Stdio participant (launched by pm.exe)
+
+The daemon launches the process and communicates over its stdin/stdout pipes.
+Register as the very first line written to stdout, then loop reading stdin.
+
+**Python example:**
+```python
+import sys, json
+
+def send(obj):
+    sys.stdout.write(json.dumps(obj) + "\n")
+    sys.stdout.flush()
+
+def main():
+    send({"cmd": "register", "name": "PySensor"})
+
+    ack = json.loads(sys.stdin.readline())
+    assert ack.get("ok"), f"register failed: {ack}"
+
+    send({"cmd": "subscribe", "tag": "control"})
+    json.loads(sys.stdin.readline())   # {"ok":true}
+
+    import time, itertools
+    for i in itertools.count():
+        send({"cmd": "publish", "to": "sensor", "data": {"value": i}})
+        time.sleep(1)
+
+        # non-blocking check for incoming messages
+        import select
+        if select.select([sys.stdin], [], [], 0)[0]:
+            msg = json.loads(sys.stdin.readline())
+            if msg.get("push") and msg["data"].get("action") == "stop":
+                break
+
+if __name__ == "__main__":
+    main()
+```
+
+Register this process in `config.qml` like any other app — point `path` at a
+directory containing a `Launch.qml` that sets `exe` to the Python interpreter:
+
+```qml
+// PySensor/Launch.qml
+import ConcertoBus 1.0
+LaunchSpec {
+    name:      "PySensor"
+    transport: "stdio"
+    mainQml:   ""          // not used — exe is set directly
+}
+```
+
+Or add it via `addEntry` from C++ before calling `pm.load()`.
+
+### TCP participant (connects externally)
+
+Any process can open a TCP socket to the daemon's port (default 49152) and use
+the same JSON protocol. Useful for external tools, scripts, or services not
+managed by pm.exe.
+
+**Node.js example:**
+```js
+const net = require("net");
+const sock = net.connect(49152, "127.0.0.1");
+let buf = "";
+
+sock.on("connect", () => {
+    send({ cmd: "register", name: "NodeClient" });
+});
+
+sock.on("data", chunk => {
+    buf += chunk;
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+        const msg = JSON.parse(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+        if (msg.ok) {
+            send({ cmd: "subscribe", tag: "sensor" });
+        } else if (msg.push) {
+            console.log("received:", msg.data);
+        }
+    }
+});
+
+function send(obj) { sock.write(JSON.stringify(obj) + "\n"); }
+```
+
+### Minimal protocol checklist for any language
+
+1. Open stdio pipes (if launched by daemon) or TCP socket (if connecting)
+2. Send `{"cmd":"register","name":"UniqueName"}` — **must be the first line**
+3. Wait for `{"ok":true}` before sending any other command
+4. Subscribe: `{"cmd":"subscribe","tag":"mytag"}`
+5. Publish: `{"cmd":"publish","to":"mytag","data":{...}}`
+6. Incoming push: `{"push":true,"from":"tag","sender":"Name","data":{...}}`
+7. On `{"error":"..."}` — log and handle; most errors are non-fatal
+
+There is no keep-alive, no heartbeat, no authentication beyond the name
+uniqueness check. The daemon queues messages for offline subscribers
+automatically.
 
 ---
 
