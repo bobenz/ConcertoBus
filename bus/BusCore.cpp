@@ -128,8 +128,10 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         sendJson(id, QJsonObject{{QStringLiteral("ok"), true}});
         // Apply auto-subscribe tags queued by attachProcess
         const QStringList tags = m_pendingAutoSubs.take(id);
-        for (const QString &tag : tags)
+        for (const QString &tag : tags) {
             m_router->handleSubscribe(id, tag);
+            for (IBusGateway *gw : m_gateways) gw->onLocalSubscribe(tag);
+        }
         for (IBusGateway *gw : m_gateways) gw->onLocalRegister(name);
         emit clientRegistered(id, name);
         // Notify any clients waiting for this process to come up

@@ -73,18 +73,17 @@ if(CONCERTO_BUS_XMPP)
     list(APPEND CMAKE_PREFIX_PATH "D:/Qt/qxmpp-installed")
     find_package(QXmppQt6 REQUIRED)
 
-    set(GATEWAY_OUTPUT_DIR "${CMAKE_BINARY_DIR}/gateways")
-
     qt_add_plugin(XmppGatewayPlugin MODULE
         CLASS_NAME XmppGateway
         bus/IBusGateway.h
         gateways/xmpp/XmppGateway.h
         gateways/xmpp/XmppGateway.cpp
     )
+    # Place beside pm.exe in <config>/gateways/ so the daemon finds it at runtime.
     set_target_properties(XmppGatewayPlugin PROPERTIES
         OUTPUT_NAME "XmppGateway"
-        LIBRARY_OUTPUT_DIRECTORY "${GATEWAY_OUTPUT_DIR}"
-        RUNTIME_OUTPUT_DIRECTORY "${GATEWAY_OUTPUT_DIR}")
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/gateways"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/gateways")
     target_include_directories(XmppGatewayPlugin PRIVATE bus)
     target_link_libraries(XmppGatewayPlugin PRIVATE Qt6::Core Qt6::Network QXmpp::QXmpp)
 endif()

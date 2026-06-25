@@ -4,6 +4,9 @@
 #include <QXmppConfiguration.h>
 #include <QXmppMessage.h>
 #include <QXmppPresence.h>
+#include <QXmppRosterManager.h>
+
+#include <QXmppLogger.h>
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -14,15 +17,73 @@ XmppGateway::XmppGateway(QObject *parent)
     : IBusGateway(parent)
     , m_client(new QXmppClient(this))
 {
+    auto *logger = QXmppLogger::getLogger();
+    logger->setLoggingType(QXmppLogger::StdoutLogging);
+    logger->setMessageTypes(QXmppLogger::AnyMessage);
+    m_client->setLogger(logger);
+
+    m_roster = m_client->findExtension<QXmppRosterManager>();
+
     connect(m_client, &QXmppClient::presenceReceived,
             this, &XmppGateway::onPresenceReceived);
     connect(m_client, &QXmppClient::messageReceived,
             this, &XmppGateway::onMessageReceived);
-    connect(m_client, &QXmppClient::connected, this, [] {
+    connect(m_client, &QXmppClient::connected, this, [this] {
+        m_connected = true;
         qInfo("XmppGateway: connected");
+        // Boost priority so bare-JID messages route here, not to other clients (e.g. Psi+).
+        QXmppPresence pres;
+        pres.setPriority(100);
+        m_client->setClientPresence(pres);
+        // Ensure every peer is in our roster so the server accepts messages both ways.
+        if (m_roster) {
+            const auto contacts = m_roster->getRosterBareJids();
+            for (const QString &peer : m_peers) {
+                if (!contacts.contains(peer)) {
+                    QXmppPresence sub;
+                    sub.setType(QXmppPresence::Subscribe);
+                    sub.setTo(peer);
+                    m_client->sendPacket(sub);
+                }
+            }
+        }
+        flushPendingPackets();
     });
-    connect(m_client, &QXmppClient::disconnected, this, [] {
+    // Auto-accept subscription requests from our configured peers.
+    if (m_roster) {
+        connect(m_roster, &QXmppRosterManager::subscriptionReceived, this,
+                [this](const QString &bareJid) {
+                    if (m_peers.contains(bareJid)) {
+                        QXmppPresence subscribed;
+                        subscribed.setType(QXmppPresence::Subscribed);
+                        subscribed.setTo(bareJid);
+                        m_client->sendPacket(subscribed);
+                    }
+                });
+    }
+    connect(m_client, &QXmppClient::disconnected, this, [this] {
+        m_connected = false;
+        m_onlinePeers.clear();
+        m_announcedTo.clear();
+        // Clear relay table — peers will re-subscribe when connection recovers.
+        m_relayTo.clear();
+        // Re-queue our own subscriptions so they are re-announced on reconnect.
+        for (const QString &tag : m_localTags) {
+            QJsonObject body;
+            body[QStringLiteral("bus_subscribe")] = true;
+            body[QStringLiteral("tag")]           = tag;
+            body[QStringLiteral("replyTo")]       = m_bareJid;
+            for (const QString &peer : m_peers) {
+                QJsonObject tagged = body;
+                tagged[QStringLiteral("__to")] = peer;
+                m_pendingToSend.append(tagged);
+            }
+        }
         qWarning("XmppGateway: disconnected");
+    });
+    connect(m_client, &QXmppClient::error, this, [this](QXmppClient::Error err) {
+        qWarning() << "XmppGateway: error" << err
+                   << m_client->xmppStreamError();
     });
 }
 
@@ -50,6 +111,9 @@ bool XmppGateway::start(const QVariantMap &config)
     if (!server.isEmpty()) cfg.setHost(server);
     if (port != 5222)      cfg.setPort(port);
 
+    cfg.setStreamSecurityMode(QXmppConfiguration::TLSDisabled);
+    cfg.setSaslAuthMechanism("DIGEST-MD5");
+
     m_client->connectToServer(cfg);
     qInfo() << "XmppGateway: connecting as" << m_bareJid
             << "| peers:" << m_peers;
@@ -60,7 +124,7 @@ bool XmppGateway::start(const QVariantMap &config)
 
 void XmppGateway::onLocalRegister(const QString &name)
 {
-    // Advertise the process as an XMPP presence resource so peers can see it.
+    if (!m_connected) return; // will re-announce on reconnect via flushPendingPackets
     QXmppPresence p;
     p.setType(QXmppPresence::Available);
     p.setFrom(m_bareJid + QLatin1Char('/') + name);
@@ -69,6 +133,7 @@ void XmppGateway::onLocalRegister(const QString &name)
 
 void XmppGateway::onLocalUnregister(const QString &name)
 {
+    if (!m_connected) return;
     QXmppPresence p;
     p.setType(QXmppPresence::Unavailable);
     p.setFrom(m_bareJid + QLatin1Char('/') + name);
@@ -77,6 +142,9 @@ void XmppGateway::onLocalUnregister(const QString &name)
 
 void XmppGateway::onLocalSubscribe(const QString &tag)
 {
+    qInfo() << "XmppGateway: onLocalSubscribe tag=" << tag << "peers=" << m_peers;
+    if (!m_localTags.contains(tag))
+        m_localTags.append(tag);
     // Tell every peer: "please relay this tag to us".
     QJsonObject body;
     body[QStringLiteral("bus_subscribe")] = true;
@@ -98,6 +166,8 @@ void XmppGateway::onLocalPublish(const QString &tag, const QString &sender,
                                   const QJsonObject &data)
 {
     const QStringList &targets = m_relayTo.value(tag);
+    qInfo() << "XmppGateway: onLocalPublish tag=" << tag
+            << "sender=" << sender << "relayTargets=" << targets;
     if (targets.isEmpty()) return;
 
     QJsonObject body;
@@ -119,22 +189,45 @@ void XmppGateway::onPresenceReceived(const QXmppPresence &presence)
     const QString resource = fullJid.section(QLatin1Char('/'), 1);
     const QString peerJid  = fullJid.section(QLatin1Char('/'), 0, 0);
 
-    if (resource.isEmpty() || peerJid == m_bareJid) return;
+    if (peerJid == m_bareJid) return;
     if (!m_peers.contains(peerJid)) return; // ignore unknown senders
 
     if (presence.type() == QXmppPresence::Available) {
-        if (!m_remoteProcs[peerJid].contains(resource))
-            m_remoteProcs[peerJid].append(resource);
-        emit remoteEvent(QStringLiteral("process_started"), resource);
+        // When a new peer runner bare JID comes online, re-announce all our
+        // local subscriptions so startup order doesn't matter.
+        if (!m_onlinePeers.contains(peerJid)) {
+            m_onlinePeers.append(peerJid);
+            qInfo() << "XmppGateway: peer online" << peerJid
+                    << "- re-announcing" << m_localTags.size() << "local tags";
+            for (const QString &tag : m_localTags) {
+                QJsonObject body;
+                body[QStringLiteral("bus_subscribe")] = true;
+                body[QStringLiteral("tag")]           = tag;
+                body[QStringLiteral("replyTo")]       = m_bareJid;
+                sendToPeer(peerJid, body);
+            }
+        }
+        // Resource beyond the runner-level JID = bus process name (lifecycle event)
+        if (!resource.isEmpty()) {
+            if (!m_remoteProcs[peerJid].contains(resource))
+                m_remoteProcs[peerJid].append(resource);
+            emit remoteEvent(QStringLiteral("process_started"), resource);
+        }
     } else if (presence.type() == QXmppPresence::Unavailable) {
-        m_remoteProcs[peerJid].removeAll(resource);
-        emit remoteEvent(QStringLiteral("process_stopped"), resource);
+        m_onlinePeers.removeAll(peerJid);
+        if (!resource.isEmpty()) {
+            m_remoteProcs[peerJid].removeAll(resource);
+            emit remoteEvent(QStringLiteral("process_stopped"), resource);
+        }
     }
 }
 
 void XmppGateway::onMessageReceived(const QXmppMessage &msg)
 {
     const QString senderJid = msg.from().section(QLatin1Char('/'), 0, 0);
+    qInfo() << "XmppGateway: onMessageReceived from=" << msg.from()
+            << "bareJid=" << senderJid << "knownPeer=" << m_peers.contains(senderJid)
+            << "body=" << msg.body().left(120);
     if (!m_peers.contains(senderJid)) return; // ignore unknown senders
 
     const QByteArray raw = msg.body().toUtf8();
@@ -158,6 +251,18 @@ void XmppGateway::onMessageReceived(const QXmppMessage &msg)
         if (!tag.isEmpty() && !replyTo.isEmpty()
                 && !m_relayTo[tag].contains(replyTo))
             m_relayTo[tag].append(replyTo);
+        // Reciprocate: peer just announced it's alive — send our subscriptions back
+        // so it can relay our tags to us. Idempotent: only once per peer per session.
+        if (!replyTo.isEmpty() && !m_announcedTo.contains(replyTo)) {
+            m_announcedTo.append(replyTo);
+            for (const QString &localTag : m_localTags) {
+                QJsonObject body;
+                body[QStringLiteral("bus_subscribe")] = true;
+                body[QStringLiteral("tag")]           = localTag;
+                body[QStringLiteral("replyTo")]       = m_bareJid;
+                sendToPeer(replyTo, body);
+            }
+        }
         return;
     }
 
@@ -187,8 +292,31 @@ void XmppGateway::sendToPeers(const QJsonObject &body)
 
 void XmppGateway::sendToPeer(const QString &peerJid, const QJsonObject &body)
 {
+    QJsonObject tagged = body;
+    tagged[QStringLiteral("__to")] = peerJid;
+
+    if (!m_connected) {
+        m_pendingToSend.append(tagged);
+        return;
+    }
+
     QXmppMessage msg;
     msg.setTo(peerJid);
     msg.setBody(QString::fromUtf8(QJsonDocument(body).toJson(QJsonDocument::Compact)));
     m_client->sendPacket(msg);
+}
+
+void XmppGateway::flushPendingPackets()
+{
+    const auto pending = m_pendingToSend;
+    m_pendingToSend.clear();
+    for (const QJsonObject &tagged : pending) {
+        const QString to = tagged[QStringLiteral("__to")].toString();
+        QJsonObject body = tagged;
+        body.remove(QStringLiteral("__to"));
+        QXmppMessage msg;
+        msg.setTo(to);
+        msg.setBody(QString::fromUtf8(QJsonDocument(body).toJson(QJsonDocument::Compact)));
+        m_client->sendPacket(msg);
+    }
 }

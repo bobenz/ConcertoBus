@@ -56,9 +56,7 @@ int main(int argc, char *argv[])
 
     // Phase 3 — main app engine
     QQmlApplicationEngine engine;
-
-    for (const QString &rel : spec->importPaths())
-        engine.addImportPath(QDir(launchDir).absoluteFilePath(rel));
+    spec->applyImportPaths(&engine, launchDir);
 
     engine.rootContext()->setContextProperty(QStringLiteral("busClient"), client);
 

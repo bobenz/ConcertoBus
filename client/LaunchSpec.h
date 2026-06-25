@@ -1,6 +1,8 @@
 #pragma once
 #include <QObject>
+#include <QDir>
 #include <QStringList>
+#include <QQmlEngine>
 #include <QtQml/qqml.h>
 
 // Self-describing application descriptor, loaded from Launch.qml.
@@ -33,6 +35,12 @@ public:
 
     QString mainQml() const { return m_mainQml; }
     void setMainQml(const QString &v);
+
+    // Add all importPaths (resolved relative to baseDir) to engine.
+    void applyImportPaths(QQmlEngine *engine, const QString &baseDir) const {
+        for (const QString &rel : m_importPaths)
+            engine->addImportPath(QDir(baseDir).absoluteFilePath(rel));
+    }
 
     // Called by ConcertoBusHost after the main component is loaded.
     void emitCompleted() { emit completed(); }
