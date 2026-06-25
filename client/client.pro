@@ -18,8 +18,5 @@ SOURCES += \
     LaunchSpec.cpp \
     StdioBusClient.cpp
 
-# Legacy QML wrappers (superseded by QML_ELEMENT in the classes above)
 OTHER_FILES += \
-    BusClientQml.h \
-    BusClientQml.cpp \
     ConcertoBusPlugin.cpp
