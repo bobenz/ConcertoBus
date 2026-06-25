@@ -38,6 +38,8 @@ public:
     QStringList autoLaunchNames() const;
     QStringList subscriptionsFor(const QString &name) const;
     QString transportFor(const QString &name) const;
+    QString attachToFor(const QString &name) const;
+    QString mainQmlUrlFor(const QString &name) const;
 
 signals:
     void processStarted(const QString &name);
@@ -54,6 +56,8 @@ private:
         QString workingDir;
         QStringList subscribes;
         QString transport;          // "stdio" or "tcp"
+        QString attachTo;           // non-empty: inject into this running client instead of spawning
+        QString mainQmlUrl;         // file URL to the app's main QML (for inject payload)
         bool autoLaunch  = false;
         bool autoRestart = false;
         int restartDelayMs = 1000;

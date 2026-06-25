@@ -34,3 +34,10 @@ void LaunchSpec::setMainQml(const QString &v)
     m_mainQml = v;
     emit mainQmlChanged();
 }
+
+void LaunchSpec::setAttachTo(const QString &v)
+{
+    if (m_attachTo == v) return;
+    m_attachTo = v;
+    emit attachToChanged();
+}

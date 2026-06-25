@@ -17,6 +17,7 @@ class LaunchSpec : public QObject
     Q_PROPERTY(QStringList subscribes READ subscribes WRITE setSubscribes NOTIFY subscribesChanged)
     Q_PROPERTY(QStringList importPaths READ importPaths WRITE setImportPaths NOTIFY importPathsChanged)
     Q_PROPERTY(QString mainQml READ mainQml WRITE setMainQml NOTIFY mainQmlChanged)
+    Q_PROPERTY(QString attachTo READ attachTo WRITE setAttachTo NOTIFY attachToChanged)
 
 public:
     explicit LaunchSpec(QObject *parent = nullptr);
@@ -36,6 +37,9 @@ public:
     QString mainQml() const { return m_mainQml; }
     void setMainQml(const QString &v);
 
+    QString attachTo() const { return m_attachTo; }
+    void setAttachTo(const QString &v);
+
     // Add all importPaths (resolved relative to baseDir) to engine.
     void applyImportPaths(QQmlEngine *engine, const QString &baseDir) const {
         for (const QString &rel : m_importPaths)
@@ -51,6 +55,7 @@ signals:
     void subscribesChanged();
     void importPathsChanged();
     void mainQmlChanged();
+    void attachToChanged();
     void completed();   // maps to onCompleted: {} in QML
 
 private:
@@ -59,4 +64,5 @@ private:
     QStringList m_subscribes;
     QStringList m_importPaths;
     QString     m_mainQml    = QStringLiteral("App.qml");
+    QString     m_attachTo;
 };

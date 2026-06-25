@@ -23,6 +23,9 @@ public:
     Q_INVOKABLE void subscribe(const QString &tag) override;
     Q_INVOKABLE void unsubscribe(const QString &tag) override;
     Q_INVOKABLE void publish(const QString &to, const QJsonObject &data) override;
+    Q_INVOKABLE void launch(const QString &name) override;
+    Q_INVOKABLE void injectQml(const QString &target, const QString &name,
+                               const QString &url = {}, const QString &source = {}) override;
 
 private slots:
     void processLine(const QByteArray &line);

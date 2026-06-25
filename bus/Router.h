@@ -27,6 +27,7 @@ public:
 
     bool isRegistered(const QString &name) const;
     QString nameOf(ClientId id) const;
+    ClientId idFor(const QString &name) const;
 
 signals:
     // Router asks BusCore to deliver a serialised push message to one client.

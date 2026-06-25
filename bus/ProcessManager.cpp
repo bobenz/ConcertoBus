@@ -30,7 +30,9 @@ bool ProcessManager::load(BusConfig *config, const QString &configDir)
     m_entries.clear();
 
     for (ProcessDef *def : config->processList()) {
-        if (def->name().isEmpty() || def->exe().isEmpty())
+        if (def->name().isEmpty())
+            continue;
+        if (def->exe().isEmpty() && def->attachTo().isEmpty())
             continue;
 
         Entry e;
@@ -39,6 +41,8 @@ bool ProcessManager::load(BusConfig *config, const QString &configDir)
         e.workingDir   = def->workingDir();
         e.subscribes   = def->subscribes();
         e.transport    = def->transport();
+        e.attachTo     = def->attachTo();
+        e.mainQmlUrl   = def->mainQmlUrl();
         e.autoLaunch   = def->autoLaunch();
         e.autoRestart  = def->autoRestart();
         e.restartDelayMs = def->restartDelay();
@@ -196,6 +200,16 @@ QStringList ProcessManager::subscriptionsFor(const QString &name) const
 QString ProcessManager::transportFor(const QString &name) const
 {
     return m_entries.value(name).transport;
+}
+
+QString ProcessManager::attachToFor(const QString &name) const
+{
+    return m_entries.value(name).attachTo;
+}
+
+QString ProcessManager::mainQmlUrlFor(const QString &name) const
+{
+    return m_entries.value(name).mainQmlUrl;
 }
 
 void ProcessManager::onProcessFinished(const QString &name, int /*exitCode*/, int exitStatus)

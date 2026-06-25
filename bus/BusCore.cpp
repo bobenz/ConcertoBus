@@ -186,6 +186,32 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         if (!watchers.contains(id)) watchers.append(id);
 
         if (c == QLatin1String("launch")) {
+            // Inject-style app: no process — send inject directly to the target client.
+            const QString attachTo = m_pm->attachToFor(name);
+            if (!attachTo.isEmpty()) {
+                const ClientId targetId = m_router->idFor(attachTo);
+                if (targetId == 0) {
+                    sendJson(id, QJsonObject{
+                        {QStringLiteral("error"), QStringLiteral("target_not_found")},
+                        {QStringLiteral("name"), attachTo}});
+                    return;
+                }
+                QJsonObject data;
+                data[QStringLiteral("inject")] = true;
+                data[QStringLiteral("name")]   = name;
+                data[QStringLiteral("url")]    = m_pm->mainQmlUrlFor(name);
+                QJsonObject push;
+                push[QStringLiteral("push")]   = true;
+                push[QStringLiteral("from")]   = QStringLiteral("__inject__");
+                push[QStringLiteral("sender")] = sender;
+                push[QStringLiteral("data")]   = data;
+                sendJson(targetId, push);
+                sendJson(id, QJsonObject{
+                    {QStringLiteral("event"), QStringLiteral("injected")},
+                    {QStringLiteral("name"), name}});
+                return;
+            }
+
             if (m_router->isRegistered(name)) {
                 sendJson(id, QJsonObject{
                     {QStringLiteral("event"), QStringLiteral("process_started")},
@@ -207,6 +233,34 @@ void BusCore::dispatchCommand(ClientId id, const QJsonObject &cmd)
         } else {
             m_pm->restart(name);
         }
+    } else if (c == QLatin1String("inject")) {
+        const QString target = cmd[QStringLiteral("target")].toString();
+        const QString name   = cmd[QStringLiteral("name")].toString();
+        const QString url    = cmd[QStringLiteral("url")].toString();
+        const QString source = cmd[QStringLiteral("source")].toString();
+        if (target.isEmpty() || name.isEmpty()) {
+            sendJson(id, QJsonObject{{QStringLiteral("error"),
+                                      QStringLiteral("missing_target_or_name")}});
+            return;
+        }
+        const ClientId targetId = m_router->idFor(target);
+        if (targetId == 0) {
+            sendJson(id, QJsonObject{{QStringLiteral("error"),
+                                      QStringLiteral("target_not_found")},
+                                     {QStringLiteral("name"), target}});
+            return;
+        }
+        QJsonObject data;
+        data[QStringLiteral("inject")] = true;
+        data[QStringLiteral("name")]   = name;
+        if (!url.isEmpty())    data[QStringLiteral("url")]    = url;
+        if (!source.isEmpty()) data[QStringLiteral("source")] = source;
+        QJsonObject push;
+        push[QStringLiteral("push")]   = true;
+        push[QStringLiteral("from")]   = QStringLiteral("__inject__");
+        push[QStringLiteral("sender")] = sender;
+        push[QStringLiteral("data")]   = data;
+        sendJson(targetId, push);
     } else {
         sendJson(id, QJsonObject{{QStringLiteral("error"), QStringLiteral("unknown_cmd")}});
     }

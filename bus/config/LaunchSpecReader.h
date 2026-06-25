@@ -13,9 +13,10 @@ class LaunchSpecReader : public QObject
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(QString transport READ transport WRITE setTransport NOTIFY transportChanged)
     Q_PROPERTY(QStringList subscribes READ subscribes WRITE setSubscribes NOTIFY subscribesChanged)
-    // Accept but ignore client-only fields so Load.qml parses without errors.
+    // Accept but ignore client-only fields so Launch.qml parses without errors.
     Q_PROPERTY(QStringList importPaths READ importPaths WRITE setImportPaths NOTIFY importPathsChanged)
     Q_PROPERTY(QString mainQml READ mainQml WRITE setMainQml NOTIFY mainQmlChanged)
+    Q_PROPERTY(QString attachTo READ attachTo WRITE setAttachTo NOTIFY attachToChanged)
 public:
     explicit LaunchSpecReader(QObject *parent = nullptr) : QObject(parent) {}
 
@@ -24,12 +25,14 @@ public:
     QStringList subscribes()  const { return m_subscribes; }
     QStringList importPaths() const { return m_importPaths; }
     QString     mainQml()     const { return m_mainQml; }
+    QString     attachTo()    const { return m_attachTo; }
 
     void setName(const QString &v)        { if (m_name != v)       { m_name = v;        emit nameChanged(); } }
     void setTransport(const QString &v)   { if (m_transport != v)  { m_transport = v;   emit transportChanged(); } }
     void setSubscribes(const QStringList &v) { m_subscribes = v;   emit subscribesChanged(); }
     void setImportPaths(const QStringList &v){ m_importPaths = v;  emit importPathsChanged(); }
     void setMainQml(const QString &v)     { if (m_mainQml != v)    { m_mainQml = v;     emit mainQmlChanged(); } }
+    void setAttachTo(const QString &v)    { if (m_attachTo != v)   { m_attachTo = v;    emit attachToChanged(); } }
 
 signals:
     void nameChanged();
@@ -37,6 +40,7 @@ signals:
     void subscribesChanged();
     void importPathsChanged();
     void mainQmlChanged();
+    void attachToChanged();
     void completed();   // matches onCompleted: {} handler in Launch.qml (ignored by pm)
 
 private:
@@ -45,4 +49,5 @@ private:
     QStringList m_subscribes;
     QStringList m_importPaths;
     QString     m_mainQml    = QStringLiteral("App.qml");
+    QString     m_attachTo;
 };

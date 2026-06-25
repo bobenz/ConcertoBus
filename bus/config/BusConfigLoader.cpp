@@ -78,18 +78,28 @@ BusConfig *BusConfigLoader::load(const QString &qmlFilePath)
 
         auto *def = new ProcessDef(config);
         def->setName(spec->name());
-        def->setExe(clientExe);
-        def->setArgs({launchQml});
-        def->setWorkingDir(appDir);
         def->setTransport(spec->transport());
         def->setSubscribes(spec->subscribes());
-        if (app->autoLaunch())
-            def->start();
-        config->addProcess(def);
 
-        qInfo() << "[BusConfigLoader] App:" << spec->name()
-                << "transport:" << spec->transport()
-                << "autoLaunch:" << app->autoLaunch();
+        if (!spec->attachTo().isEmpty()) {
+            // Inject-style app: no process to spawn; daemon sends inject to target.
+            const QString mainQmlUrl = QUrl::fromLocalFile(
+                QDir(appDir).absoluteFilePath(spec->mainQml())).toString();
+            def->setAttachTo(spec->attachTo());
+            def->setMainQmlUrl(mainQmlUrl);
+            qInfo() << "[BusConfigLoader] InjectApp:" << spec->name()
+                    << "→" << spec->attachTo();
+        } else {
+            def->setExe(clientExe);
+            def->setArgs({launchQml});
+            def->setWorkingDir(appDir);
+            if (app->autoLaunch())
+                def->start();
+            qInfo() << "[BusConfigLoader] App:" << spec->name()
+                    << "transport:" << spec->transport()
+                    << "autoLaunch:" << app->autoLaunch();
+        }
+        config->addProcess(def);
 
         delete specObj;
     }

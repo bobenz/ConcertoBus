@@ -20,10 +20,15 @@ public:
     Q_INVOKABLE virtual void subscribe(const QString &tag) = 0;
     Q_INVOKABLE virtual void unsubscribe(const QString &tag) = 0;
     Q_INVOKABLE virtual void publish(const QString &to, const QJsonObject &data) = 0;
+    Q_INVOKABLE virtual void launch(const QString &name) = 0;
+    Q_INVOKABLE virtual void injectQml(const QString &target, const QString &name,
+                                       const QString &url    = {},
+                                       const QString &source = {}) = 0;
 
 signals:
     void nameChanged();
     void connectedChanged();
     void messageReceived(const QString &tag, const QString &sender, const QJsonObject &data);
     void errorOccurred(const QString &error);
+    void injectionRequested(const QString &name, const QString &url, const QString &source);
 };

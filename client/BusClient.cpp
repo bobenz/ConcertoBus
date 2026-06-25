@@ -73,6 +73,18 @@ void BusClient::launch(const QString &name)
                         {QStringLiteral("name"), name}});
 }
 
+void BusClient::injectQml(const QString &target, const QString &name,
+                           const QString &url, const QString &source)
+{
+    QJsonObject cmd;
+    cmd[QStringLiteral("cmd")]    = QStringLiteral("inject");
+    cmd[QStringLiteral("target")] = target;
+    cmd[QStringLiteral("name")]   = name;
+    if (!url.isEmpty())    cmd[QStringLiteral("url")]    = url;
+    if (!source.isEmpty()) cmd[QStringLiteral("source")] = source;
+    sendCmd(cmd);
+}
+
 void BusClient::onConnected()
 {
     if (!m_name.isEmpty()) {
@@ -119,10 +131,18 @@ void BusClient::processLine(const QByteArray &line)
     const QJsonObject msg = doc.object();
 
     if (msg[QStringLiteral("push")].toBool()) {
+        const QJsonObject data = msg[QStringLiteral("data")].toObject();
+        if (data[QStringLiteral("inject")].toBool()) {
+            emit injectionRequested(
+                data[QStringLiteral("name")].toString(),
+                data[QStringLiteral("url")].toString(),
+                data[QStringLiteral("source")].toString());
+            return;
+        }
         emit messageReceived(
             msg[QStringLiteral("from")].toString(),
             msg[QStringLiteral("sender")].toString(),
-            msg[QStringLiteral("data")].toObject());
+            data);
         return;
     }
     if (msg.contains(QStringLiteral("event"))) {

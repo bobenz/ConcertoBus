@@ -100,6 +100,11 @@ QString Router::nameOf(ClientId id) const
     return m_clientName.value(id);
 }
 
+ClientId Router::idFor(const QString &name) const
+{
+    return m_registry.value(name, 0);
+}
+
 QByteArray Router::makePush(const QString &tag, const QString &sender,
                              const QJsonObject &data) const
 {

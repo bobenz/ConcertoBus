@@ -150,9 +150,35 @@ void StdioBusClient::processLine(const QByteArray &line)
     }
 
     if (obj[QStringLiteral("push")].toBool()) {
+        const QJsonObject data = obj[QStringLiteral("data")].toObject();
+        if (data[QStringLiteral("inject")].toBool()) {
+            emit injectionRequested(
+                data[QStringLiteral("name")].toString(),
+                data[QStringLiteral("url")].toString(),
+                data[QStringLiteral("source")].toString());
+            return;
+        }
         emit messageReceived(
             obj[QStringLiteral("from")].toString(),
             obj[QStringLiteral("sender")].toString(),
-            obj[QStringLiteral("data")].toObject());
+            data);
     }
+}
+
+void StdioBusClient::launch(const QString &name)
+{
+    sendJson(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("launch")},
+                         {QStringLiteral("name"), name}});
+}
+
+void StdioBusClient::injectQml(const QString &target, const QString &name,
+                                const QString &url, const QString &source)
+{
+    QJsonObject cmd;
+    cmd[QStringLiteral("cmd")]    = QStringLiteral("inject");
+    cmd[QStringLiteral("target")] = target;
+    cmd[QStringLiteral("name")]   = name;
+    if (!url.isEmpty())    cmd[QStringLiteral("url")]    = url;
+    if (!source.isEmpty()) cmd[QStringLiteral("source")] = source;
+    sendJson(cmd);
 }

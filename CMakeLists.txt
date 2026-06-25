@@ -125,7 +125,7 @@ set_target_properties(ConcertoBusHost PROPERTIES OUTPUT_NAME "client")
 
 target_include_directories(ConcertoBusHost PRIVATE client)
 target_link_libraries(ConcertoBusHost PRIVATE
-    ConcertoBusClient Qt6::Core Qt6::Qml
+    ConcertoBusClient Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick
 )
 
 # ── BusCore (wires StdioTransport + Router) ───────────────────────────────────

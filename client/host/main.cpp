@@ -1,9 +1,10 @@
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QDir>
 #include <QFileInfo>
+#include <QTimer>
 #include <QUrl>
 #include <QtQml>
 
@@ -14,7 +15,7 @@
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
 
     if (argc < 2) {
         qCritical("Usage: ConcertoBusHost <path/to/Launch.qml>");
@@ -51,6 +52,24 @@ int main(int argc, char *argv[])
         (spec->transport() == QLatin1String("tcp"))
             ? static_cast<AbstractBusClient *>(new BusClient(&app))
             : static_cast<AbstractBusClient *>(new StdioBusClient(&app));
+
+    // attachTo fast-path: send an inject command to the target and exit
+    if (!spec->attachTo().isEmpty()) {
+        const QString mainPath = QDir(launchDir).absoluteFilePath(spec->mainQml());
+        const QString appName  = spec->name();
+        const QString attachTo = spec->attachTo();
+        const QString url      = QUrl::fromLocalFile(mainPath).toString();
+        client->setName(appName + QStringLiteral("_launcher"));
+        QObject::connect(client, &AbstractBusClient::connectedChanged, &app,
+                         [client, attachTo, appName, url, &app]() {
+                             if (client->isConnected()) {
+                                 client->injectQml(attachTo, appName, url);
+                                 QTimer::singleShot(500, &app, &QCoreApplication::quit);
+                             }
+                         });
+        client->connectToBus();
+        return app.exec();
+    }
 
     client->setName(spec->name());
 

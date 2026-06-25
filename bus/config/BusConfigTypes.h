@@ -42,6 +42,9 @@ class ProcessDef : public QObject
     Q_PROPERTY(bool autoRestart  READ autoRestart  WRITE setAutoRestart  NOTIFY autoRestartChanged)
     Q_PROPERTY(int restartDelay  READ restartDelay  WRITE setRestartDelay  NOTIFY restartDelayChanged)
     Q_PROPERTY(int maxRestarts   READ maxRestarts   WRITE setMaxRestarts   NOTIFY maxRestartsChanged)
+    // Set when the app injects into an existing client instead of spawning a new process.
+    Q_PROPERTY(QString attachTo   READ attachTo   WRITE setAttachTo   NOTIFY attachToChanged)
+    Q_PROPERTY(QString mainQmlUrl READ mainQmlUrl WRITE setMainQmlUrl NOTIFY mainQmlUrlChanged)
 public:
     explicit ProcessDef(QObject *parent = nullptr) : QObject(parent) {}
 
@@ -69,6 +72,11 @@ public:
     Q_INVOKABLE void start() { m_autoLaunch = true; }
     bool autoLaunch() const { return m_autoLaunch; }
 
+    QString attachTo()    const { return m_attachTo; }
+    QString mainQmlUrl()  const { return m_mainQmlUrl; }
+    void setAttachTo(const QString &v)   { if (m_attachTo != v)    { m_attachTo = v;    emit attachToChanged(); } }
+    void setMainQmlUrl(const QString &v) { if (m_mainQmlUrl != v)  { m_mainQmlUrl = v;  emit mainQmlUrlChanged(); } }
+
 signals:
     void nameChanged();
     void exeChanged();
@@ -79,6 +87,8 @@ signals:
     void autoRestartChanged();
     void restartDelayChanged();
     void maxRestartsChanged();
+    void attachToChanged();
+    void mainQmlUrlChanged();
 
 private:
     QString m_name;
@@ -91,6 +101,8 @@ private:
     bool m_autoRestart = false;
     int m_restartDelay = 1000;
     int m_maxRestarts = 5;
+    QString m_attachTo;
+    QString m_mainQmlUrl;
 };
 
 // ---------------------------------------------------------------------------
