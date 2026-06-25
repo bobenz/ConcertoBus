@@ -2,8 +2,8 @@
 // Hosts DisplayApp locally. Federates with Runner A over XMPP so that
 // Sensor messages published on Runner A are received here.
 //
-// Run (from project root, with XMPP build):
-//   build\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-b\config.qml
+// Run (from project root):
+//   build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-b\config.qml
 
 import QtQml 2.0
 import ConcertoBusConfig 1.0
@@ -17,7 +17,7 @@ BusConfig {
         Gateway {
             plugin:   "xmpp"
             user:     "client2@xmpp.credics"
-            password: "2"
+            password: "test2"
             peers:    ["client1@xmpp.credics"]
         }
     ]

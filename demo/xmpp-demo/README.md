@@ -12,21 +12,23 @@ Runner A (client1@xmpp.credics)        Runner B (client2@xmpp.credics)
       publishes "sensor"  ─────────────►  subscribes "sensor"
 ```
 
-## Requirements
+## Build
 
-- Build with `-DCONCERTO_BUS_XMPP=ON`
-- `gateways\XmppGateway.dll` present beside `pm.exe`
+```powershell
+cmake -B build/xmpp -DCONCERTO_BUS_XMPP=ON -DCMAKE_PREFIX_PATH="D:/Qt/6.10.3/msvc2022_64"
+cmake --build build/xmpp --config RelWithDebInfo
+```
 
-## Run
+## Run (from project root)
 
 **Runner A** (start first):
 ```
-pm.exe -c demo\xmpp-demo\runner-a\config.qml
+build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-a\config.qml
 ```
 
 **Runner B** (any order):
 ```
-pm.exe -c demo\xmpp-demo\runner-b\config.qml
+build\xmpp\RelWithDebInfo\pm.exe -c demo\xmpp-demo\runner-b\config.qml
 ```
 
 Once both runners connect to `xmpp.credics`, DisplayApp will receive
