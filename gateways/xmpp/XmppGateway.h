@@ -52,7 +52,6 @@ private:
     QString      m_bareJid;
     QStringList  m_peers;                       // peer runner bare JIDs from config
     QHash<QString, QStringList> m_relayTo;         // tag → peer bare JIDs that subscribed for relay
-    QHash<QString, QStringList> m_remoteProcs;    // peerJid → registered process names
     QStringList  m_localTags;                     // tags we have locally subscribed
     QStringList  m_onlinePeers;                   // peer bare JIDs currently seen online
     QStringList  m_announcedTo;                   // peers we have sent our subscriptions to

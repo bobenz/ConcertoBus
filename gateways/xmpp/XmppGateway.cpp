@@ -124,20 +124,14 @@ bool XmppGateway::start(const QVariantMap &config)
 
 void XmppGateway::onLocalRegister(const QString &name)
 {
-    if (!m_connected) return; // will re-announce on reconnect via flushPendingPackets
-    QXmppPresence p;
-    p.setType(QXmppPresence::Available);
-    p.setFrom(m_bareJid + QLatin1Char('/') + name);
-    m_client->sendPacket(p);
+    // Process lifecycle is tracked via bus_event messages, not XMPP presence.
+    // Clients cannot set an arbitrary 'from' resource — the server owns that.
+    Q_UNUSED(name)
 }
 
 void XmppGateway::onLocalUnregister(const QString &name)
 {
-    if (!m_connected) return;
-    QXmppPresence p;
-    p.setType(QXmppPresence::Unavailable);
-    p.setFrom(m_bareJid + QLatin1Char('/') + name);
-    m_client->sendPacket(p);
+    Q_UNUSED(name)
 }
 
 void XmppGateway::onLocalSubscribe(const QString &tag)
@@ -193,8 +187,8 @@ void XmppGateway::onPresenceReceived(const QXmppPresence &presence)
     if (!m_peers.contains(peerJid)) return; // ignore unknown senders
 
     if (presence.type() == QXmppPresence::Available) {
-        // When a new peer runner bare JID comes online, re-announce all our
-        // local subscriptions so startup order doesn't matter.
+        // When a peer runner comes online, re-announce our local subscriptions
+        // so startup order doesn't matter.
         if (!m_onlinePeers.contains(peerJid)) {
             m_onlinePeers.append(peerJid);
             qInfo() << "XmppGateway: peer online" << peerJid
@@ -207,18 +201,8 @@ void XmppGateway::onPresenceReceived(const QXmppPresence &presence)
                 sendToPeer(peerJid, body);
             }
         }
-        // Resource beyond the runner-level JID = bus process name (lifecycle event)
-        if (!resource.isEmpty()) {
-            if (!m_remoteProcs[peerJid].contains(resource))
-                m_remoteProcs[peerJid].append(resource);
-            emit remoteEvent(QStringLiteral("process_started"), resource);
-        }
     } else if (presence.type() == QXmppPresence::Unavailable) {
         m_onlinePeers.removeAll(peerJid);
-        if (!resource.isEmpty()) {
-            m_remoteProcs[peerJid].removeAll(resource);
-            emit remoteEvent(QStringLiteral("process_stopped"), resource);
-        }
     }
 }
 
