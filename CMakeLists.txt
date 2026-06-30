@@ -191,9 +191,9 @@ if(Qt6Test_FOUND)
     set_tests_properties(tst_router PROPERTIES ENVIRONMENT "${TEST_ENV}")
 
     # Step 2 — stdio end-to-end: helper process + integration test
+    # stdio_echo_helper speaks the raw protocol from scratch — no client lib needed.
     qt_add_executable(stdio_echo_helper tests/stdio_echo_helper/main.cpp)
-    target_include_directories(stdio_echo_helper PRIVATE client)
-    target_link_libraries(stdio_echo_helper PRIVATE ConcertoBusClient Qt6::Core)
+    target_link_libraries(stdio_echo_helper PRIVATE Qt6::Core)
 
     qt_add_executable(tst_stdio tests/tst_stdio.cpp)
     target_include_directories(tst_stdio PRIVATE bus transports/stdio)
