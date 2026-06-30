@@ -47,6 +47,18 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // standalone fast-path: load App.qml with no bus connection at all
+    if (spec->standalone()) {
+        QQmlApplicationEngine engine;
+        spec->applyImportPaths(&engine, launchDir);
+        const QString mainPath = QDir(launchDir).absoluteFilePath(spec->mainQml());
+        engine.load(QUrl::fromLocalFile(mainPath));
+        if (engine.rootObjects().isEmpty())
+            return 1;
+        spec->emitCompleted();
+        return app.exec();
+    }
+
     // Phase 2 — create the transport-appropriate client
     AbstractBusClient *client =
         (spec->transport() == QLatin1String("tcp"))

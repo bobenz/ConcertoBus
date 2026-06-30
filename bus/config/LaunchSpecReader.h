@@ -17,6 +17,7 @@ class LaunchSpecReader : public QObject
     Q_PROPERTY(QStringList importPaths READ importPaths WRITE setImportPaths NOTIFY importPathsChanged)
     Q_PROPERTY(QString mainQml READ mainQml WRITE setMainQml NOTIFY mainQmlChanged)
     Q_PROPERTY(QString attachTo READ attachTo WRITE setAttachTo NOTIFY attachToChanged)
+    Q_PROPERTY(bool standalone READ standalone WRITE setStandalone NOTIFY standaloneChanged)
 public:
     explicit LaunchSpecReader(QObject *parent = nullptr) : QObject(parent) {}
 
@@ -26,6 +27,7 @@ public:
     QStringList importPaths() const { return m_importPaths; }
     QString     mainQml()     const { return m_mainQml; }
     QString     attachTo()    const { return m_attachTo; }
+    bool        standalone()  const { return m_standalone; }
 
     void setName(const QString &v)        { if (m_name != v)       { m_name = v;        emit nameChanged(); } }
     void setTransport(const QString &v)   { if (m_transport != v)  { m_transport = v;   emit transportChanged(); } }
@@ -33,6 +35,7 @@ public:
     void setImportPaths(const QStringList &v){ m_importPaths = v;  emit importPathsChanged(); }
     void setMainQml(const QString &v)     { if (m_mainQml != v)    { m_mainQml = v;     emit mainQmlChanged(); } }
     void setAttachTo(const QString &v)    { if (m_attachTo != v)   { m_attachTo = v;    emit attachToChanged(); } }
+    void setStandalone(bool v)            { if (m_standalone != v) { m_standalone = v;  emit standaloneChanged(); } }
 
 signals:
     void nameChanged();
@@ -41,6 +44,7 @@ signals:
     void importPathsChanged();
     void mainQmlChanged();
     void attachToChanged();
+    void standaloneChanged();
     void completed();   // matches onCompleted: {} handler in Launch.qml (ignored by pm)
 
 private:
@@ -50,4 +54,5 @@ private:
     QStringList m_importPaths;
     QString     m_mainQml    = QStringLiteral("App.qml");
     QString     m_attachTo;
+    bool        m_standalone = false;
 };
