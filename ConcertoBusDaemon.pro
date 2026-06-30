@@ -7,6 +7,7 @@ SUBDIRS = \
     bus/router \
     transports/stdio \
     transports/tcp \
+    gateways/xmpp \
     bus/buscore \
     daemon \
     tests/stdio_echo_helper \
