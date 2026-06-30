@@ -7,6 +7,8 @@
 #  include <io.h>
 #  include <fcntl.h>
 #  include <windows.h>
+#else
+#  include <unistd.h>
 #endif
 
 class StdinReader : public QThread
@@ -80,6 +82,20 @@ void StdioBusClient::setName(const QString &name)
 
 void StdioBusClient::connectToBus()
 {
+    // If stdin is not a pipe (e.g. launched directly from a terminal),
+    // skip the daemon handshake and treat the app as immediately connected.
+#ifdef Q_OS_WIN
+    const DWORD stdinType = GetFileType(GetStdHandle(STD_INPUT_HANDLE));
+    const bool hasPipe = (stdinType == FILE_TYPE_PIPE);
+#else
+    const bool hasPipe = !isatty(fileno(stdin));
+#endif
+    if (!hasPipe) {
+        m_registered = true;
+        emit connectedChanged();
+        return;
+    }
+
     startReading();
     if (!m_name.isEmpty())
         sendJson(QJsonObject{{QStringLiteral("cmd"),  QStringLiteral("register")},

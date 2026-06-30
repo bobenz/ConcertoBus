@@ -42,9 +42,3 @@ void LaunchSpec::setAttachTo(const QString &v)
     emit attachToChanged();
 }
 
-void LaunchSpec::setStandalone(bool v)
-{
-    if (m_standalone == v) return;
-    m_standalone = v;
-    emit standaloneChanged();
-}
