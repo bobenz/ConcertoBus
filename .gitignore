@@ -1,3 +1,20 @@
+# Build directories
 build/
+build-*/
+build_*/
+
+# Qt Creator
 *.user
 .qtcreator/
+docs/.obsidian/
+
+# Deploy output
+dist/
+
+# Log / stderr capture files
+*.txt
+*.log
+*_stderr.txt
+
+# Qt5 build artifacts
+build-qt5/
