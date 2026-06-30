@@ -2,7 +2,7 @@ TEMPLATE = app
 TARGET   = pm
 CONFIG  += c++17
 QT      += core network qml
-DESTDIR  = $$OUT_PWD
+DESTDIR  = $$OUT_PWD/..
 
 INCLUDEPATH += \
     ../bus \
